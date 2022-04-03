@@ -18,4 +18,15 @@
         android:layout_height="wrap_content"
         android:text="Hello World!"/>
 
+    <fragment
+        android:id="@+id/first"
+        android:name="com.joyy.android_project.FirstFragment"
+        android:layout_width="match_parent"
+        android:layout_height="200dp" />
+
+    <fragment
+        android:id="@+id/second"
+        android:name="com.joyy.android_project.SecondFragment"
+        android:layout_width="match_parent"
+        android:layout_height="200dp" />
 </LinearLayout>
