@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
+import android.widget.Toast
 
 class SecondActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,4 +33,9 @@ class SecondActivity : AppCompatActivity() {
         super.onResume()
         Utils.printTask(this)
     }
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        Toast.makeText(this, "newIntent", Toast.LENGTH_SHORT).show()
+    }
+
 }

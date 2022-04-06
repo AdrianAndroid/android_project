@@ -15,6 +15,7 @@
             android:exported="false" />
         <activity
             android:name=".ThirdActivity"
+            android:launchMode="singleTop"
             android:exported="false" />
         <activity
             android:name=".SecondActivity"

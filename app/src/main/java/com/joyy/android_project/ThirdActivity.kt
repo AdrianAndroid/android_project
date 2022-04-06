@@ -3,6 +3,7 @@ package com.joyy.android_project
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
 class ThirdActivity : AppCompatActivity() {
@@ -20,6 +21,7 @@ class ThirdActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.toThird).setOnClickListener {
             startActivity(Intent(this, ThirdActivity::class.java))
+            //Toast.makeText(this, "toThird", Toast.LENGTH_SHORT).show()
         }
 
         findViewById<View>(R.id.toFour).setOnClickListener {
@@ -30,5 +32,10 @@ class ThirdActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         Utils.printTask(this)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        Toast.makeText(this, "newIntent", Toast.LENGTH_SHORT).show()
     }
 }
