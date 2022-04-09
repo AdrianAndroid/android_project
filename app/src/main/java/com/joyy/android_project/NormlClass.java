@@ -22,6 +22,7 @@ public class NormlClass {
     } ;
 
     void send() {
+        handler.getLooper().quit();
         handler.sendEmptyMessage(0);
     }
 }

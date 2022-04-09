@@ -43,6 +43,7 @@ public class OtherLeakActivity extends AppCompatActivity {
     }
     void testHandler() {
         Handler handler = new Handler(Looper.getMainLooper());
+        handler.sendEmptyMessage(0);
         handler.removeCallbacksAndMessages(null);
     }
 
