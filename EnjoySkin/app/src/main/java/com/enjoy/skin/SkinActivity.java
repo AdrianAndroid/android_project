@@ -17,15 +17,7 @@ public class SkinActivity extends Activity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-//        LayoutInflater.from(this).setFactory2();
         setContentView(R.layout.activity_skin);
-
-//        findViewById(R.id.tabLayout);
-//        Resources resources = getResources();
-//        new Resources()
-
-       
-
     }
 
     public void change(View view) {

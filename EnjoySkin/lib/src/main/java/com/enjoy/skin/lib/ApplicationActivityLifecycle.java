@@ -12,7 +12,7 @@ import com.enjoy.skin.lib.utils.SkinThemeUtils;
 import java.lang.reflect.Field;
 import java.util.Observable;
 
-public class ApplicationActivityLifecycle implements Application.ActivityLifecycleCallbacks {
+public class ApplicationActivitqyLifecycle implements Application.ActivityLifecycleCallbacks {
 
     private Observable mObserable;
     private ArrayMap<Activity, SkinLayoutInflaterFactory> mLayoutInflaterFactories = new
@@ -47,8 +47,7 @@ public class ApplicationActivityLifecycle implements Application.ActivityLifecyc
         }
 
         //使用factory2 设置布局加载工程
-        SkinLayoutInflaterFactory skinLayoutInflaterFactory = new SkinLayoutInflaterFactory
-                (activity);
+        SkinLayoutInflaterFactory skinLayoutInflaterFactory = new SkinLayoutInflaterFactory(activity);
         LayoutInflaterCompat.setFactory2(layoutInflater, skinLayoutInflaterFactory);
         mLayoutInflaterFactories.put(activity, skinLayoutInflaterFactory);
 
