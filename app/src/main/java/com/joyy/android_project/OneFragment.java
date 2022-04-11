@@ -12,12 +12,12 @@ import androidx.fragment.app.Fragment;
 
 /**
  * A simple {@link Fragment} subclass.
- * Use the {@link BlankFragment#newInstance} factory method to
+ * Use the {@link OneFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class BlankFragment extends Fragment {
+public class OneFragment extends Fragment {
 
-    public BlankFragment() {
+    public OneFragment() {
         // Required empty public constructor
     }
 
@@ -28,8 +28,8 @@ public class BlankFragment extends Fragment {
      * @return A new instance of fragment BlankFragment.
      */
     // TODO: Rename and change types and number of parameters
-    public static BlankFragment newInstance() {
-        BlankFragment fragment = new BlankFragment();
+    public static OneFragment newInstance() {
+        OneFragment fragment = new OneFragment();
         Bundle args = new Bundle();
         fragment.setArguments(args);
         return fragment;

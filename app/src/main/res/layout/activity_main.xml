@@ -6,16 +6,28 @@
     android:orientation="vertical"
     tools:context=".MainActivity">
 
-    <Button
-        android:id="@+id/btnFinish"
+
+    <androidx.appcompat.widget.LinearLayoutCompat
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="finish" />
+        android:layout_height="wrap_content">
+
+        <Button
+            android:id="@+id/btnFinish"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="finish" />
+
+        <Button
+            android:id="@+id/btnAdd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="add fragment" />
+    </androidx.appcompat.widget.LinearLayoutCompat>
 
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/staticFragment"
-        android:name="com.joyy.android_project.BlankFragment"
+        android:name="com.joyy.android_project.OneFragment"
         android:layout_width="match_parent"
         android:layout_height="200dp" />
 

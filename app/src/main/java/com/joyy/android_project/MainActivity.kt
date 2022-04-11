@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.FragmentTransaction
 
 class MainActivity : AppCompatActivity() {
 
@@ -11,6 +12,7 @@ class MainActivity : AppCompatActivity() {
         val TAG = "FRAGMENT"
         fun log(msg: String, prefix: String = "Activity") {
             Log.i(TAG, "$prefix -> $msg")
+            print("$TAG $prefix -> $msg")
         }
     }
 
@@ -20,6 +22,17 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         findViewById<View>(R.id.btnFinish).setOnClickListener {
             finish()
+        }
+        findViewById<View>(R.id.btnAdd).setOnClickListener {
+            fragmentManager
+            val manager = supportFragmentManager
+            val beginTransaction: FragmentTransaction = manager.beginTransaction()
+            val oneFragment = OneFragment()
+            beginTransaction.replace(R.id.dynamicContainer, oneFragment)
+            beginTransaction.commit()
+            beginTransaction.commitAllowingStateLoss()
+            beginTransaction.commitNow()
+            beginTransaction.commitNowAllowingStateLoss()
         }
     }
 
