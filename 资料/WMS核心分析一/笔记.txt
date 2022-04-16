@@ -1,0 +1,178 @@
+WMS
+
+
+注意： 本节课与其他课程不同，同学们
+请不要拘泥于源码细节，而是注重流程
+
+正确的阅读方式就是：
+1. 先整体了解大概的流程，
+2. 然后再阅读具体的代码流程
+3. 看完代码流程后再画时序图(作业)
+
+20：05开始 再等等啊
+人太少了
+
+framework 
+handler -> binder
+android启动流程
+AMS
+PKMS
+WMS 两次 
+亿图 
+
+WMS system_server进程
+
+app       WM             WMS
+view  
+
+Token  binder    
+
+UI view  -> Window 
+   
+MFC    window  弱化 -> view   
+
+
+app                  ams
+Activity             ActivityRecord
+
+
+60Hz
+16.67 ms 
+掉帧 systrace  连续掉帧
+
+
+
+ios
+120Hz
+8ms 掉帧  连续掉帧
+
+90Hz 
+12ms
+
+canvas -> Surface 代表画布
+
+手机：window  
+PhoneWindow
+
+WMS的初始化：
+不同的线程 disaplay
+           ui
+		   system_server
+		   
+面试点		   
+runWithScissors
+hander.post 消息执行之后然后再继续往下执行
+
+handler.post()/sendmsg 异步 
+1
+Log.i("zero","2")
+
+WMS.main system_server主线程
+
+Handler
+
+DisplayThread.getHandler().runWithScissors(new Runnable(){//display线程初始化
+                  public void run(){
+				   sInstance = new WindowManagerService(context, im, haveInputMethods, showBootMsgs,
+                        onlyCore, policy)
+				  }
+                }, 0);
+
+return  sInstance
+startActivity   Activity phoneWindow
+startActivity 
+startActivityLocked
+StartingWindow
+
+startActivity -> AMS -> app UI  ->performLaunchActivity
+
+创建我们 Activity 
+
+ActivityClientRecord token  ->AMS ActivityRecord token
+
+Activity 
+Window
+
+
+
+addView
+token 
+window  三种  显示次序的计算
+window尺寸的计算
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
