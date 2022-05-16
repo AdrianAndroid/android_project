@@ -7,4 +7,8 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <color name="shadow_default_color">#26000000</color>
+    <color name="shadow_default_stroke_color">#00000000</color>
+    <color name="shadow_card_hard_emoji_container_color">#14000000</color>
 </resources>
