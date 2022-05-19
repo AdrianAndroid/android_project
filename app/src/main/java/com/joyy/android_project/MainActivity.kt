@@ -2,6 +2,8 @@ package com.joyy.android_project
 
 import android.animation.TimeInterpolator
 import android.os.Bundle
+import android.transition.AutoTransition
+import android.transition.TransitionManager
 import android.view.animation.*
 import androidx.appcompat.app.AppCompatActivity
 
@@ -18,6 +20,11 @@ class MainActivity : AppCompatActivity() {
             }
 
         };
+        var autoTransition = AutoTransition()
+        autoTransition.interpolator = AccelerateDecelerateInterpolator();
+        autoTransition.
+        TransitionManager.beginDelayedTransition(null, autoTransition)
+        BounceInterpolator()
         // 动画加速进行
         AccelerateInterpolator();
         // 快速完成动画超出再回到结果样式
