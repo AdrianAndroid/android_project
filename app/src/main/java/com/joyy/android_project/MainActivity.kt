@@ -1,12 +1,24 @@
 package com.joyy.android_project
 
-import androidx.appcompat.app.AppCompatActivity
+import android.animation.ObjectAnimator
+import android.content.Intent
 import android.os.Bundle
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        findViewById<View>(R.id.btnMyView2).setOnClickListener {
+            startActivity(Intent(this, ColorActivity::class.java));
+        }
+
+        findViewById<View>(R.id.btnMyView).setOnClickListener {
+            startActivity(Intent(this, PointActivity::class.java));
+        }
+
     }
 
     /**
