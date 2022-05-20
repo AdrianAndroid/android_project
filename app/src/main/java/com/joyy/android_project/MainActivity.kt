@@ -1,6 +1,5 @@
 package com.joyy.android_project
 
-import android.animation.ObjectAnimator
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -17,6 +16,16 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.btnMyView).setOnClickListener {
             startActivity(Intent(this, PointActivity::class.java));
+        }
+
+        findViewById<View>(R.id.Constraint).setOnClickListener {
+            startActivity(Intent(this, AnimatorActivity::class.java));
+        }
+        findViewById<View>(R.id.ObjectID).setOnClickListener {
+            startActivity(Intent(this, ObjectActivity::class.java));
+        }
+        findViewById<View>(R.id.rotation).setOnClickListener {
+            startActivity(Intent(this, RotationActivity::class.java));
         }
 
     }

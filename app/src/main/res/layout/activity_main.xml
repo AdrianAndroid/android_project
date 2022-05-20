@@ -17,5 +17,20 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="PointActivity" />
+    <Button
+        android:id="@+id/Constraint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Constraint" />
+    <Button
+        android:id="@+id/ObjectID"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ObjectID" />
+    <Button
+        android:id="@+id/rotation"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="rotation" />
 
 </LinearLayout>

@@ -1,5 +1,6 @@
 package com.joyy.android_project;
 
+import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
@@ -7,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.util.AttributeSet;
 import android.view.View;
+import android.view.animation.AccelerateInterpolator;
 
 /**
  * 功能描述
@@ -49,6 +51,7 @@ public class MyView extends View {
 
             // 步骤2：创建动画对象 & 设置参数
             ValueAnimator anim = ValueAnimator.ofObject(new PointEvaluator(), startPoint, endPoint);
+            //anim.setInterpolator(new AccelerateInterpolator());
 
             // 参数说明：
             // 参数1：TypeEvaluator 类型参数 - 使用自定义的PointEvaluator(实现了TypeEvaluator接口）

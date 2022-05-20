@@ -10,6 +10,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Android_project">
         <activity
+            android:name=".RotationActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ObjectActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AnimatorActivity"
+            android:exported="false" />
+        <activity
             android:name=".ColorActivity"
             android:exported="false" />
         <activity
