@@ -3,10 +3,10 @@ package com.joyy.android_project
 import android.os.Bundle
 import android.util.Log
 import android.view.View
-import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.FragmentTransaction
+import com.flannery.FragmentActivity
+import com.flannery.FragmentTransaction
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : FragmentActivity() {
 
     companion object {
         val TAG = "FRAGMENT"
