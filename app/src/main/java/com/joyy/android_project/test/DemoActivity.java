@@ -6,10 +6,10 @@ import android.view.View;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.constraintlayout.widget.ConstraintSet;
-import androidx.transition.AutoTransition;
-import androidx.transition.TransitionManager;
 
+import com.joyy.android_project.AutoTransition;
 import com.joyy.android_project.R;
+import com.joyy.android_project.TransitionManager;
 
 public class DemoActivity extends AppCompatActivity {
 
