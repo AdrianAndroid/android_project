@@ -7,6 +7,10 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        val s1 = "";
+        val s2 = "";
+        var equals = s1.equals(s2)
+
     }
 
     /**
