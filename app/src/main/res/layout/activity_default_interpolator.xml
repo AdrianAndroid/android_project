@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".DefaultInterpolatorActivity">
+
+    <Button
+        android:id="@+id/btnStart"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="开始" />
+
+    <TextView
+        android:id="@+id/LinearInter"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#23ff00ff"
+        android:text="Linear" />
+
+    <TextView
+        android:id="@+id/Accelerate"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#23ff00ff"
+        android:text="Accelerate" />
+
+    <TextView
+        android:id="@+id/AccelerateDecelerate"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#23ff00ff"
+        android:text="AccelerateDecelerate" />
+
+    <TextView
+        android:id="@+id/Cycle"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#23ff00ff"
+        android:text="Cycle" />
+
+    <TextView
+        android:id="@+id/Decelerate"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#23ff00ff"
+        android:text="Decelerate" />
+
+    <TextView
+        android:id="@+id/Anticipate"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#23ff00ff"
+        android:text="Anticipate" />
+
+    <TextView
+        android:id="@+id/AnticipateOvershoot"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#23ff00ff"
+        android:text="AnticipateOvershoot" />
+
+    <TextView
+        android:id="@+id/Bounce"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#23ff00ff"
+        android:text="Bounce" />
+
+    <TextView
+        android:id="@+id/Overshot"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#23ff00ff"
+        android:text="Overshot" />
+
+</LinearLayout>
