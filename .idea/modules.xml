@@ -7,6 +7,9 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/android_project.app.androidTest.iml" filepath="$PROJECT_DIR$/.idea/modules/app/android_project.app.androidTest.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/android_project.app.main.iml" filepath="$PROJECT_DIR$/.idea/modules/app/android_project.app.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/android_project.app.unitTest.iml" filepath="$PROJECT_DIR$/.idea/modules/app/android_project.app.unitTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/lib/android_project.lib.iml" filepath="$PROJECT_DIR$/.idea/modules/lib/android_project.lib.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/lib/android_project.lib.main.iml" filepath="$PROJECT_DIR$/.idea/modules/lib/android_project.lib.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/lib/android_project.lib.test.iml" filepath="$PROJECT_DIR$/.idea/modules/lib/android_project.lib.test.iml" />
     </modules>
   </component>
 </project>
