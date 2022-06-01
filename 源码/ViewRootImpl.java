@@ -1119,6 +1119,7 @@ public final class ViewRootImpl implements ViewParent,
 
     private void performTraversals() {
         // cache mView since it is used so much below...
+        // 将mView保存在局部变量host中，以此提高对mView的的反问效率
         final View host = mView;
 
         if (DBG) {
@@ -1136,15 +1137,14 @@ public final class ViewRootImpl implements ViewParent,
         boolean newSurface = false;
         boolean surfaceChanged = false;
         WindowManager.LayoutParams lp = mWindowAttributes;
-
+        // 声明本阶段的主角，这两个变量将是mView的SPEC_SIZE分量的候选
         int desiredWindowWidth;
         int desiredWindowHeight;
 
         final View.AttachInfo attachInfo = mAttachInfo;
 
         final int viewVisibility = getHostVisibility();
-        boolean viewVisibilityChanged = mViewVisibility != viewVisibility
-                || mNewSurfaceNeeded;
+        boolean viewVisibilityChanged = mViewVisibility != viewVisibility || mNewSurfaceNeeded;
 
         WindowManager.LayoutParams params = null;
         if (mWindowAttributesChanged) {
@@ -1168,24 +1168,24 @@ public final class ViewRootImpl implements ViewParent,
 
         mWindowAttributesChangesFlag = 0;
 
-        Rect frame = mWinFrame;
+        Rect frame = mWinFrame; // 如上一节所述，mWinFrame表示窗口的最新尺寸
         if (mFirst) {
             mFullRedrawNeeded = true;
             mLayoutRequested = true;
-
+            // mFrist表示这是第一次遍历，此时窗口刚刚被添加到WMS，此时窗口尚未进行relayout，因此mWinFrame中没有存储有效的窗口尺寸
             if (lp.type == WindowManager.LayoutParams.TYPE_STATUS_BAR_PANEL) {
                 // NOTE -- system code, won't try to do compat mode.
+                // 为状态栏设置desiredWindowWidth/Height,其取值是屏幕尺寸
                 Point size = new Point();
                 mDisplay.getRealSize(size);
                 desiredWindowWidth = size.x;
                 desiredWindowHeight = size.y;
             } else {
-                DisplayMetrics packageMetrics =
-                        mView.getContext().getResources().getDisplayMetrics();
+                // 1。第一次"遍历"的测量，采用了应用可以使用的最大尺寸作为SPEC_SIZE的候选
+                DisplayMetrics packageMetrics = mView.getContext().getResources().getDisplayMetrics();
                 desiredWindowWidth = packageMetrics.widthPixels;
                 desiredWindowHeight = packageMetrics.heightPixels;
             }
-
             // For the very first time, tell the view hierarchy that it
             // is attached to the window.  Note that at this point the surface
             // object is not initialized to its backing store, but soon it
@@ -1209,7 +1209,8 @@ public final class ViewRootImpl implements ViewParent,
             mFitSystemWindowsInsets.set(mAttachInfo.mContentInsets);
             host.fitSystemWindows(mFitSystemWindowsInsets);
             //Log.i(TAG, "Screen on initialized: " + attachInfo.mKeepScreenOn);
-
+            // 由于这是第一次进行"遍历"，控制树即将第一次被显示在窗口上，因此接下来的代码填充了mAttachInfo中的一些字段，
+            // 然后通过mView发起dispatchAttachedToWindow()的调用，之后每一个位于控制树中的控件都会回调onAttachedToWindow
         } else {
             desiredWindowWidth = frame.width();
             desiredWindowHeight = frame.height();
