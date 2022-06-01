@@ -40,14 +40,15 @@ import java.util.ArrayList;
  * situations. Specifying other transitions for particular scene changes is
  * only necessary if the application wants different transition behavior
  * in these situations.
- *
- * <p>TransitionManagers can be declared in XML resource files inside the
+ * <p>
+ * TransitionManagers can be declared in XML resource files inside the
  * <code>res/transition</code> directory. TransitionManager resources consist of
  * the <code>transitionManager</code>tag name, containing one or more
  * <code>transition</code> tags, each of which describe the relationship of
  * that transition to the from/to scene information in that tag.
  * For example, here is a resource file that declares several scene
- * transitions:</p>
+ * transitions:
+ * </p>
  *
  * <pre>
  *     &lt;transitionManager xmlns:android="http://schemas.android.com/apk/res/android"&gt;
@@ -67,36 +68,40 @@ import java.util.ArrayList;
  *                     android:transition="@transition/changebounds_fadeout_sequential"/&gt;
  *     &lt;/transitionManager&gt;
  * </pre>
- *
- * <p>For each of the <code>fromScene</code> and <code>toScene</code> attributes,
+ * <p>
+ * For each of the <code>fromScene</code> and <code>toScene</code> attributes,
  * there is a reference to a standard XML layout file. This is equivalent to
  * creating a scene from a layout in code by calling
  * {@link Scene#getSceneForLayout(ViewGroup, int, Context)}. For the
  * <code>transition</code> attribute, there is a reference to a resource
  * file in the <code>res/transition</code> directory which describes that
- * transition.</p>
+ * transition.
+ * </p>
  */
 public class TransitionManager {
 
     private static final String LOG_TAG = "TransitionManager";
 
-    private static Transition sDefaultTransition = new AutoTransition();
+    private static final Transition sDefaultTransition = new AutoTransition();
 
-    private ArrayMap<Scene, Transition> mSceneTransitions = new ArrayMap<>();
-    private ArrayMap<Scene, ArrayMap<Scene, Transition>> mScenePairTransitions = new ArrayMap<>();
-    private static ThreadLocal<WeakReference<ArrayMap<ViewGroup, ArrayList<Transition>>>>
-            sRunningTransitions = new ThreadLocal<>();
+    private final ArrayMap<Scene, Transition> mSceneTransitions = new ArrayMap<>();
+
+    private final ArrayMap<Scene, ArrayMap<Scene, Transition>> mScenePairTransitions = new ArrayMap<>();
+
+    private static final ThreadLocal<WeakReference<ArrayMap<ViewGroup, ArrayList<Transition>>>> sRunningTransitions =
+        new ThreadLocal<>();
+
     @SuppressWarnings("WeakerAccess") /* synthetic access */
     static ArrayList<ViewGroup> sPendingTransitions = new ArrayList<>();
 
     /**
      * Sets a specific transition to occur when the given scene is entered.
      *
-     * @param scene      The scene which, when applied, will cause the given
-     *                   transition to run.
+     * @param scene The scene which, when applied, will cause the given
+     *        transition to run.
      * @param transition The transition that will play when the given scene is
-     *                   entered. A value of null will result in the default behavior of
-     *                   using the default transition instead.
+     *        entered. A value of null will result in the default behavior of
+     *        using the default transition instead.
      */
     public void setTransition(@NonNull Scene scene, @Nullable Transition transition) {
         mSceneTransitions.put(scene, transition);
@@ -106,16 +111,15 @@ public class TransitionManager {
      * Sets a specific transition to occur when the given pair of scenes is
      * exited/entered.
      *
-     * @param fromScene  The scene being exited when the given transition will
-     *                   be run
-     * @param toScene    The scene being entered when the given transition will
-     *                   be run
+     * @param fromScene The scene being exited when the given transition will
+     *        be run
+     * @param toScene The scene being entered when the given transition will
+     *        be run
      * @param transition The transition that will play when the given scene is
-     *                   entered. A value of null will result in the default behavior of
-     *                   using the default transition instead.
+     *        entered. A value of null will result in the default behavior of
+     *        using the default transition instead.
      */
-    public void setTransition(@NonNull Scene fromScene, @NonNull Scene toScene,
-                              @Nullable Transition transition) {
+    public void setTransition(@NonNull Scene fromScene, @NonNull Scene toScene, @Nullable Transition transition) {
         ArrayMap<Scene, Transition> sceneTransitionMap = mScenePairTransitions.get(toScene);
         if (sceneTransitionMap == null) {
             sceneTransitionMap = new ArrayMap<>();
@@ -131,8 +135,8 @@ public class TransitionManager {
      *
      * @param scene The scene being entered
      * @return The Transition to be used for the given scene change. If no
-     * Transition was specified for this scene change, the default transition
-     * will be used instead.
+     *         Transition was specified for this scene change, the default transition
+     *         will be used instead.
      */
     private Transition getTransition(Scene scene) {
         Transition transition;
@@ -141,8 +145,7 @@ public class TransitionManager {
             // TODO: cached in Scene instead? long-term, cache in View itself
             Scene currScene = Scene.getCurrentScene(sceneRoot);
             if (currScene != null) {
-                ArrayMap<Scene, Transition> sceneTransitionMap = mScenePairTransitions
-                        .get(scene);
+                ArrayMap<Scene, Transition> sceneTransitionMap = mScenePairTransitions.get(scene);
                 if (sceneTransitionMap != null) {
                     transition = sceneTransitionMap.get(currScene);
                     if (transition != null) {
@@ -162,7 +165,7 @@ public class TransitionManager {
      * the end values for the transition, and finally plays the
      * resulting values-populated transition.
      *
-     * @param scene      The scene being entered
+     * @param scene The scene being entered
      * @param transition The transition to play for this scene change
      */
     private static void changeScene(Scene scene, Transition transition) {
@@ -197,8 +200,7 @@ public class TransitionManager {
     }
 
     static ArrayMap<ViewGroup, ArrayList<Transition>> getRunningTransitions() {
-        WeakReference<ArrayMap<ViewGroup, ArrayList<Transition>>> runningTransitions =
-                sRunningTransitions.get();
+        WeakReference<ArrayMap<ViewGroup, ArrayList<Transition>>> runningTransitions = sRunningTransitions.get();
         if (runningTransitions != null) {
             ArrayMap<ViewGroup, ArrayList<Transition>> transitions = runningTransitions.get();
             if (transitions != null) {
@@ -211,8 +213,7 @@ public class TransitionManager {
         return transitions;
     }
 
-    private static void sceneChangeRunTransition(final ViewGroup sceneRoot,
-                                                 final Transition transition) {
+    private static void sceneChangeRunTransition(final ViewGroup sceneRoot, final Transition transition) {
         if (transition != null && sceneRoot != null) {
             MultiListener listener = new MultiListener(transition, sceneRoot);
             sceneRoot.addOnAttachStateChangeListener(listener);
@@ -228,8 +229,7 @@ public class TransitionManager {
      * from the hierarchy before the OnPreDraw event takes place; it's used to
      * clean up things since the OnPreDraw listener didn't get called in time.
      */
-    private static class MultiListener implements ViewTreeObserver.OnPreDrawListener,
-            View.OnAttachStateChangeListener {
+    private static class MultiListener implements ViewTreeObserver.OnPreDrawListener, View.OnAttachStateChangeListener {
 
         Transition mTransition;
 
@@ -273,8 +273,7 @@ public class TransitionManager {
             }
 
             // Add to running list, handle end to remove it
-            final ArrayMap<ViewGroup, ArrayList<Transition>> runningTransitions =
-                    getRunningTransitions();
+            final ArrayMap<ViewGroup, ArrayList<Transition>> runningTransitions = getRunningTransitions();
             ArrayList<Transition> currentTransitions = runningTransitions.get(mSceneRoot);
             ArrayList<Transition> previousRunningTransitions = null;
             if (currentTransitions == null) {
@@ -352,16 +351,17 @@ public class TransitionManager {
     /**
      * Convenience method to simply change to the given scene using
      * the given transition.
-     *
-     * <p>Passing in <code>null</code> for the transition parameter will
+     * <p>
+     * Passing in <code>null</code> for the transition parameter will
      * result in the scene changing without any transition running, and is
      * equivalent to calling {@link Scene#exit()} on the scene root's
      * current scene, followed by {@link Scene#enter()} on the scene
-     * specified by the <code>scene</code> parameter.</p>
+     * specified by the <code>scene</code> parameter.
+     * </p>
      *
-     * @param scene      The Scene to change to
+     * @param scene The Scene to change to
      * @param transition The transition to use for this scene change. A
-     *                   value of null causes the scene change to happen with no transition.
+     *        value of null causes the scene change to happen with no transition.
      */
     public static void go(@NonNull Scene scene, @Nullable Transition transition) {
         changeScene(scene, transition);
@@ -389,32 +389,32 @@ public class TransitionManager {
      * will be animated. There is no need to create a Scene; it is implied by
      * changes which take place between calling this method and the next frame when
      * the transition begins.
-     *
-     * <p>Calling this method several times before the next frame (for example, if
+     * <p>
+     * Calling this method several times before the next frame (for example, if
      * unrelated code also wants to make dynamic changes and run a transition on
      * the same scene root), only the first call will trigger capturing values
      * and exiting the current scene. Subsequent calls to the method with the
-     * same scene root during the same frame will be ignored.</p>
+     * same scene root during the same frame will be ignored.
+     * </p>
+     * <p>
+     * Passing in <code>null</code> for the transition parameter will
+     * cause the TransitionManager to use its default transition.
+     * </p>
      *
-     * <p>Passing in <code>null</code> for the transition parameter will
-     * cause the TransitionManager to use its default transition.</p>
-     *
-     * @param sceneRoot  The root of the View hierarchy to run the transition on.
+     * @param sceneRoot The root of the View hierarchy to run the transition on.
      * @param transition The transition to use for this change. A
-     *                   value of null causes the TransitionManager to use the default transition.
+     *        value of null causes the TransitionManager to use the default transition.
      */
-    public static void beginDelayedTransition(@NonNull final ViewGroup sceneRoot,
-                                              @Nullable Transition transition) {
+    public static void beginDelayedTransition(@NonNull final ViewGroup sceneRoot, @Nullable Transition transition) {
         if (!sPendingTransitions.contains(sceneRoot) && ViewCompat.isLaidOut(sceneRoot)) {
             if (Transition.DBG) {
-                Log.d(LOG_TAG, "beginDelayedTransition: root, transition = "
-                        + sceneRoot + ", " + transition);
+                Log.d(LOG_TAG, "beginDelayedTransition: root, transition = " + sceneRoot + ", " + transition);
             }
             sPendingTransitions.add(sceneRoot);
             if (transition == null) {
                 transition = sDefaultTransition;
             }
-            final Transition transitionClone = transition.clone();
+            final Transition transitionClone = transition.clone(); // 防止泄漏吧
             sceneChangeSetup(sceneRoot, transitionClone);
             Scene.setCurrentScene(sceneRoot, null);
             sceneChangeRunTransition(sceneRoot, transitionClone);
