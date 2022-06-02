@@ -13997,21 +13997,30 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @param r Right position, relative to parent
      * @param b Bottom position, relative to parent
      */
+    // layout方法主要做了三件事
+    // 1。通过setFrame设置布局的4个坐标
+    // 2。调用onLayout方法，使子类得到布局变更的通知。如果此类是一个ViewGroup，则需要在onLayout方法中一次调用每一个子控件的layout方法使其得到布局。切记不能调用子控件的onLayout方法，这导致子控件没有机会调用setFrame，从而使得此控件的坐标信息无法得到更新
+    // 3。通知每一个对此控件的布局变化感兴趣的监听者。可以通过调用View.addOnLayoutChangeListener加入对此控件的监听
     @SuppressWarnings({"unchecked"})
     public void layout(int l, int t, int r, int b) {
+        // 保持原始坐标
         int oldL = mLeft;
         int oldT = mTop;
         int oldB = mBottom;
         int oldR = mRight;
+        // 1。setFrame方法将l、t、r、b、分别设置到mLeft,mTop,mRight与mBottom
         boolean changed = setFrame(l, t, r, b);
+        // 是否还记得PFLAG_LAYOUT_REQUIRED标记？它在View.measure()方法中被添加到mPrivateFlags。按照常理来说，当此控件的布局没有发生改变时
+        // 是没有必要继续对子控件进行布局的，而这个标记则会将其方形，以保证真正需要布局的子控件得到布局
         if (changed || (mPrivateFlags & PFLAG_LAYOUT_REQUIRED) == PFLAG_LAYOUT_REQUIRED) {
+            //2。执行lnLayout，如果这是一个ViewGroup，onLayout中需要一次调用子控件的layout方法
             onLayout(changed, l, t, r, b);
+            // 清除PFLAG_LAYOUT_REQUIRED
             mPrivateFlags &= ~PFLAG_LAYOUT_REQUIRED;
-
+            // 3。通知每一个对此控件的布局变化感兴趣的监听者
             ListenerInfo li = mListenerInfo;
             if (li != null && li.mOnLayoutChangeListeners != null) {
-                ArrayList<OnLayoutChangeListener> listenersCopy =
-                        (ArrayList<OnLayoutChangeListener>)li.mOnLayoutChangeListeners.clone();
+                ArrayList<OnLayoutChangeListener> listenersCopy = (ArrayList<OnLayoutChangeListener>)li.mOnLayoutChangeListeners.clone();
                 int numListeners = listenersCopy.size();
                 for (int i = 0; i < numListeners; ++i) {
                     listenersCopy.get(i).onLayoutChange(this, l, t, r, b, oldL, oldT, oldR, oldB);
@@ -15505,29 +15514,38 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @see #onMeasure(int, int)
      */
     public final void measure(int widthMeasureSpec, int heightMeasureSpec) {
+        // 仅当给予的MeasureSpec发生变化，或要求强制重新布局时，才会进行测量
+        // 所谓强制重新布局，是指当控件树中的一个子控件的内容发生变化时，需要进行重新测量和布局的情况。
+        // 在这种情况下，这个子控件的父控件（以及其父控件的父控件）所提供的的MeasureSpec必定与上次测量时的值相同，
+        // 因而导致从ViewRootImpl到这个控件的路径上的父控件的measure方法无法得到执行，
+        // 进而导致子控件无法重新测量尺寸或布局。因此，当子控件因内容发生变化时，从子控件沿着控件树回溯到
+        // ViewRootImpl，并依次调用沿途父控件的requestLayout方法。这个方法会在mPrivateFlags中加入标记PFLAG_FORCE_LAYOUT，
+        // 从而使得这些父控件的measrue方法得以顺利执行，进而这个子控件有机会进行重新测量与布局。这便是强制重新布局的意义
         if ((mPrivateFlags & PFLAG_FORCE_LAYOUT) == PFLAG_FORCE_LAYOUT ||
                 widthMeasureSpec != mOldWidthMeasureSpec ||
                 heightMeasureSpec != mOldHeightMeasureSpec) {
 
             // first clears the measured dimension flag
+            // 1。准备工作。从mPrivateFlags中将PFLAG_MEASURED_DIMENSION_SET标记取出
             mPrivateFlags &= ~PFLAG_MEASURED_DIMENSION_SET;
 
             resolveRtlPropertiesIfNeeded();
 
             // measure ourselves, this should set the measured dimension flag back
+            // 2。对本控件进行测量。每个View子类都需要重载这个方法以便正确的对自身进行测量。
+            // View类的onMeasure方法仅仅更具北京Drawable或style中设置的最小尺寸作为测量结果
             onMeasure(widthMeasureSpec, heightMeasureSpec);
 
             // flag not set, setMeasuredDimension() was not invoked, we raise
             // an exception to warn the developer
+            // 3。检查onMeasure的实现是否调用了setMeasureDimension
             if ((mPrivateFlags & PFLAG_MEASURED_DIMENSION_SET) != PFLAG_MEASURED_DIMENSION_SET) {
-                throw new IllegalStateException("onMeasure() did not set the"
-                        + " measured dimension by calling"
-                        + " setMeasuredDimension()");
+                throw new IllegalStateException("onMeasure() did not set the" + " measured dimension by calling" + " setMeasuredDimension()");
             }
-
+            // 4。将PFLAG_LAYOUT_REQUIRED标记加入到mPrivateFlags。这一操作会对随后的布局操作放行
             mPrivateFlags |= PFLAG_LAYOUT_REQUIRED;
         }
-
+        // 记录父控件给予的MesasureSpec，用以检查之后的测量操作是否有必要进行
         mOldWidthMeasureSpec = widthMeasureSpec;
         mOldHeightMeasureSpec = heightMeasureSpec;
     }
@@ -15596,9 +15614,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * {@link #MEASURED_STATE_TOO_SMALL}.
      */
     protected final void setMeasuredDimension(int measuredWidth, int measuredHeight) {
+        // 1.测量结果被分别保存在成员变量mMeasuredWidth与mMeasuredHeight中
         mMeasuredWidth = measuredWidth;
         mMeasuredHeight = measuredHeight;
-
+        // 2。向mPrivateFlags中添加PFLAG_MEASURED_SET，以此证明onMeasure保存了测量结果
         mPrivateFlags |= PFLAG_MEASURED_DIMENSION_SET;
     }
 
