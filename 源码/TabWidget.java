@@ -102,8 +102,10 @@ public class TabWidget extends LinearLayout implements OnFocusChangeListener {
         } else {
             // Always draw the selected tab last, so that drop shadows are drawn
             // in the correct z-order.
+            // 最后一次绘制永远留给被选中的Tab
             if (i == childCount - 1) {
                 return mSelectedTab;
+            // 而其他的绘制则跳过了选中的Tab之后按照默认的顺序顺序执行
             } else if (i >= mSelectedTab) {
                 return i + 1;
             } else {

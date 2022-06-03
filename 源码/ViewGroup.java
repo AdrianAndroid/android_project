@@ -2774,9 +2774,14 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         }
 
         int saveCount = 0;
+        // 1。设置裁剪区域。有时候子控件可能部分或者完全位于ViewGroup之外。在默认情况下，ViewGroup的下列代码通过Canvas.clipRect方法
+        // 将子控件的绘制限制在自身区域之内。超出此区域的绘制内容将会被裁剪。是否需要进行越界内容的裁剪取决于ViewGroup.mGroupFlags中是否
+        // 包含CLIP_TO_PADDING_MASK标记，因此开发者可以通过ViewGroup.setClipToPadding方法修改这一行为，使得子控件超出的内容仍然的得以显示
         final boolean clipToPadding = (flags & CLIP_TO_PADDING_MASK) == CLIP_TO_PADDING_MASK;
         if (clipToPadding) {
+            // 首先保存Canvas的状态，随后可以通过Canvas.restore方法恢复到这个状态
             saveCount = canvas.save();
+            // canvas.clipRect将保证给定区域之外的绘制都会被裁剪
             canvas.clipRect(mScrollX + mPaddingLeft, mScrollY + mPaddingTop,
                     mScrollX + mRight - mLeft - mPaddingRight,
                     mScrollY + mBottom - mTop - mPaddingBottom);
@@ -2786,21 +2791,28 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         // We will draw our child's animation, let's reset the flag
         mPrivateFlags &= ~PFLAG_DRAW_ANIMATION;
         mGroupFlags &= ~FLAG_INVALIDATE_REQUIRED;
-
+        // 获取当前的时间戳，用于子控件计算其动画参数
         boolean more = false;
         final long drawingTime = getDrawingTime();
-
+        // 2。遍历绘制所有的子控件。根据mGroupFlags中是否存在FLAG_CHILD_DRAWING_ORDER标记，dispatchDraw会采用两种不同的绘制顺序
         if ((flags & FLAG_USE_CHILD_DRAWING_ORDER) == 0) {
+            // 在默认情况下，dispatchDraw会按照mChildren列表的索引顺序进行绘制。ViewGroup.addView方法默认会讲子控件添加到
+            // 列表末尾，同时它提供了一个重载允许开发者将子控件添加到列表的一个指定位置。就是说默认情况下的绘制顺序与子控件加入ViewGroup的先后
+            // 关系或调用addView时所指定的位置有关
             for (int i = 0; i < count; i++) {
                 final View child = children[i];
                 if ((child.mViewFlags & VISIBILITY_MASK) == VISIBLE || child.getAnimation() != null) {
+                    // 3。调用drawChild方法绘制一个子控件
                     more |= drawChild(canvas, child, drawingTime);
                 }
             }
         } else {
+            // 倘若mGroupFlags成员中存在FLAG_USE_CHILD_DRAWING_ORDER标记，则表示此ViewGroup希望按照其自定义的绘制顺序进行绘制。
+            // 自定义的绘制顺序由getChildDrawingOrder的实现者可以根据已完成绘制子控件的个数决定下一个需要进行绘制的子控件的索引
             for (int i = 0; i < count; i++) {
                 final View child = children[getChildDrawingOrder(count, i)];
                 if ((child.mViewFlags & VISIBILITY_MASK) == VISIBLE || child.getAnimation() != null) {
+                    // 与默认绘制顺序一样，通过drawChild方法绘制一个子控件
                     more |= drawChild(canvas, child, drawingTime);
                 }
             }
@@ -2820,7 +2832,7 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         if (debugDraw()) {
             onDebugDraw(canvas);
         }
-
+        // 4。通过Canvas.restoreToCount撤销之前所做的剪裁设置
         if (clipToPadding) {
             canvas.restoreToCount(saveCount);
         }
@@ -4949,23 +4961,31 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
      */
     void finishAnimatingView(final View view, Animation animation) {
         final ArrayList<View> disappearingChildren = mDisappearingChildren;
+        // 1. mDisappearingChilren的存在就是当动画结束时操作必须交由父控件完成的原因
+        // 原来，如果在进行动画将这个控件从父控件时，ViewGroup会将其从mChildren中移除，但会同时放置到mDisappearingChildren数组中，
+        // 并等待动画结束。由于mDisappearingCHildren中的控件依然会得到绘制（参考ViewGroup.dispatchDraw())。因此在执行了ViewGroup.removeView()
+        // 之后，用户仍然可以看到动画中的控件，知道动画结束后才会消失。另外，前面提到的LayoutTransition也依赖于这一机制，使得其移除动画而被用户看到。
         if (disappearingChildren != null) {
             if (disappearingChildren.contains(view)) {
+                // 把控件从mDisappearingChilren中删除，这样以来控件真正的被移除了
                 disappearingChildren.remove(view);
-
+                // 动画执行过程中将控件从父控件中移除并不会立即触发onDetachedFromWindow,而是当动画完成之后才会调用。这是因为控件的绘制依赖于mAttachInfo
                 if (view.mAttachInfo != null) {
                     view.dispatchDetachedFromWindow();
                 }
-
+                // clearAnimation终止动画并将mCurrentAnimaiton置为null
                 view.clearAnimation();
                 mGroupFlags |= FLAG_INVALIDATE_REQUIRED;
             }
         }
-
+        // clearAnimation将会终止动画并将mCurrentAnimation设置为null。于是下次重绘时没有mCurrentAnimation，便不会产生动画变换，
+        // 因而控件恢复到了动画执行前的状态。
+        // 注意仅当Animation.getFillAfter为false时才会这么做。因为FillAfter表示当动画结束时将会使控件停留在最后一帧的状态，
+        // 因此必须保留动画变换持续生效
         if (animation != null && !animation.getFillAfter()) {
             view.clearAnimation();
         }
-
+        // 3。最后调用view.onAnimationEnd()，动画终止
         if ((view.mPrivateFlags & PFLAG_ANIMATION_STARTED) == PFLAG_ANIMATION_STARTED) {
             view.onAnimationEnd();
             // Should be performed by onAnimationEnd() but this avoid an infinite loop,

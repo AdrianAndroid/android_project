@@ -12370,13 +12370,14 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (width == 0 || height == 0) {
             return null;
         }
-
+        // 此方法的执行条件与View.buildDrawingCache的相同
         if ((mPrivateFlags & PFLAG_DRAWING_CACHE_VALID) == 0 || mHardwareLayer == null) {
             if (mHardwareLayer == null) {
-                mHardwareLayer = mAttachInfo.mHardwareRenderer.createHardwareLayer(
-                        width, height, isOpaque());
+                // 1。如果控件尚无硬件缓存，则通过hardwareRenderer创建一个
+                mHardwareLayer = mAttachInfo.mHardwareRenderer.createHardwareLayer(width, height, isOpaque());
                 mLocalDirtyRect.set(0, 0, width, height);
             } else {
+                // 2。当尺寸发生变化时，则通过HardwareRenderer创建一个
                 if (mHardwareLayer.getWidth() != width || mHardwareLayer.getHeight() != height) {
                     if (mHardwareLayer.resize(width, height)) {
                         mLocalDirtyRect.set(0, 0, width, height);
@@ -12401,8 +12402,9 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             if (!mHardwareLayer.isValid()) {
                 return null;
             }
-
+            // 设置将硬件缓存绘制到Cavans上时所使用的paint
             mHardwareLayer.setLayerPaint(mLayerPaint);
+            // 3。设置用来刷新硬件缓存的DisplayList。
             mHardwareLayer.redrawLater(getHardwareLayerDisplayList(mHardwareLayer), mLocalDirtyRect);
             ViewRootImpl viewRoot = getViewRootImpl();
             if (viewRoot != null) viewRoot.pushHardwareLayerUpdate(mHardwareLayer);
@@ -12571,18 +12573,25 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * the view will avoid creating a layer inside the resulting display list.
      * @return A new or reused DisplayList object.
      */
+    // 分三个步骤：
+    // 通过DisplayList.start创建一个hardwareCanvas并准备好开始录制绘图指令。
+    // 使用HardwareCanvas进行与Canvas一样的变换与绘制操作
+    // 通过DisplayList.end完成录制并回收HardwareCanvas
     private DisplayList getDisplayList(DisplayList displayList, boolean isLayer) {
         if (!canHaveDisplayList()) {
             return null;
         }
-
+        // 进行DisplayList的创建与渲染的条件如下：
+        // 1。mPrivateFlags不存在PFLAG_DRAWING_CACHE_VALID标记，表示此控件的绘图缓存无效，此时需要重新渲染其绘图缓存，本节暂不讨论想改内容。
+        // 2。displayList == null，表示此控件是第一次使用硬件加速进行绘制，因此需要创建一个DisplayList并对其进行渲染。
+        // 3。displayList.isValid，当控件从控件树上拿下时，此displayList会被标记为invlid，档期重新回到控件树时，需要对DisplayList进行重新渲染。
+        // 4。mRecreateDisplayList为true，正如在GLRenderer.draw中所见，当控件被invlidate之后，mRecreateDisplayList会被重置为true，因此需要进行重新渲染
         if (((mPrivateFlags & PFLAG_DRAWING_CACHE_VALID) == 0 ||
                 displayList == null || !displayList.isValid() ||
                 (!isLayer && mRecreateDisplayList))) {
             // Don't need to recreate the display list, just need to tell our
             // children to restore/recreate theirs
-            if (displayList != null && displayList.isValid() &&
-                    !isLayer && !mRecreateDisplayList) {
+            if (displayList != null && displayList.isValid() && !isLayer && !mRecreateDisplayList) {
                 mPrivateFlags |= PFLAG_DRAWN | PFLAG_DRAWING_CACHE_VALID;
                 mPrivateFlags &= ~PFLAG_DIRTY_MASK;
                 dispatchGetDisplayList();
@@ -12595,6 +12604,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 // we copy in child display lists into ours in drawChild()
                 mRecreateDisplayList = true;
             }
+            // 1.如果参数中没有提供DisplayList，则创建一个DisplayList。在本例中，这种情况对应着控件第一次使用硬件加速进行绘制。
             if (displayList == null) {
                 final String name = getClass().getSimpleName();
                 displayList = mAttachInfo.mHardwareRenderer.createDisplayList(name);
@@ -12605,27 +12615,36 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             }
 
             boolean caching = false;
+            // 2。获取绑定在DisplayList上的hardwareCanvas。DisplayList.start方法将使DisplayList返回一个HardwareCanvas,
+            // 并准备好从此hardwareCanvas中录制绘图操作
             final HardwareCanvas canvas = displayList.start();
             int width = mRight - mLeft;
             int height = mBottom - mTop;
 
             try {
+                // 设置Canvas的坐标系为（0，0，width，height）
                 canvas.setViewport(width, height);
                 // The dirty rect should always be null for a display list
+                // 通过onPreDraw指定了此控件所使用的绘图缓冲的类型，不为LAYER_TYPE_NONE时表示此控件使用了某种类型的绘图缓冲，本节不讨论此内容
                 canvas.onPreDraw(null);
+                // 1. 获取缓存类型
                 int layerType = getLayerType();
                 if (!isLayer && layerType != LAYER_TYPE_NONE) {
+                    // 处理硬件缓存
                     if (layerType == LAYER_TYPE_HARDWARE) {
+                        // 2。通过getHardwareLayer方法获取刷新后的硬件缓存
                         final HardwareLayer layer = getHardwareLayer();
                         if (layer != null && layer.isValid()) {
+                            // 3。通过HardwareCanvas.drawHardwareLayer方法将硬件缓存绘制到DisplayList上
                             canvas.drawHardwareLayer(layer, 0, 0, mLayerPaint);
                         } else {
                             canvas.saveLayer(0, 0, mRight - mLeft, mBottom - mTop, mLayerPaint,
-                                    Canvas.HAS_ALPHA_LAYER_SAVE_FLAG |
-                                            Canvas.CLIP_TO_LAYER_SAVE_FLAG);
+                                    Canvas.HAS_ALPHA_LAYER_SAVE_FLAG | Canvas.CLIP_TO_LAYER_SAVE_FLAG);
                         }
                         caching = true;
+                    // 处理软件缓存
                     } else {
+                        // 4。软件缓存的处理方法与软件绘制时的软件缓存完全一致
                         buildDrawingCache(true);
                         Bitmap cache = getDrawingCache(true);
                         if (cache != null) {
@@ -12634,7 +12653,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                         }
                     }
                 } else {
-
+                    // 3. 计算并绘制控件的滚动量
                     computeScroll();
 
                     canvas.translate(-mScrollX, -mScrollY);
@@ -12644,20 +12663,24 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                     }
 
                     // Fast path for layouts with no backgrounds
+                    // 接下来的这段代码在View.draw(ViewGroup, Canvas, long)中见到过
                     if ((mPrivateFlags & PFLAG_SKIP_DRAW) == PFLAG_SKIP_DRAW) {
+                        // 跳过本控件的控制，直接绘制子内容。以此作为无背景ViewGroup绘制时的一条节省开销的快速通道
                         dispatchDraw(canvas);
                     } else {
-                        draw(canvas);
+                        // 4。 draw方法将控件自身的内容绘制到HardwareCanvas
+                        draw(canvas); // 将控件内容绘制到DisplayList上
                     }
                 }
             } finally {
                 canvas.onPostDraw();
-
+                // 4。结束录制。
                 displayList.end();
                 displayList.setCaching(caching);
                 if (isLayer) {
                     displayList.setLeftTopRightBottom(0, 0, width, height);
                 } else {
+                    // 重点所在：setDisplayListProperties做了什么
                     setDisplayListProperties(displayList);
                 }
             }
@@ -12665,7 +12688,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             mPrivateFlags |= PFLAG_DRAWN | PFLAG_DRAWING_CACHE_VALID;
             mPrivateFlags &= ~PFLAG_DIRTY_MASK;
         }
-
+        // 将渲染过的DisplayList返回给调用者
         return displayList;
     }
 
@@ -12676,6 +12699,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @return A DisplayList fopr the specified HardwareLayer
      */
     private DisplayList getHardwareLayerDisplayList(HardwareLayer layer) {
+        // 又一次回到View.getDisplayList，注意这一次getdisplayList的参数与之前的不同。传入的DisplayList来自给定的hardwareLayer，
+        // 而不是控件自身的mDisplayList，并且第二个参数isLayer的值为true，而不是以往的false
         DisplayList displayList = getDisplayList(layer.getDisplayList(), true);
         layer.setDisplayList(displayList);
         return displayList;
@@ -12691,6 +12716,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @hide
      */
     public DisplayList getDisplayList() {
+        // 通过getDisplayList的另外一个重载获取一个渲染过的DisplayList, 注意第二个参数永远为false
         mDisplayList = getDisplayList(mDisplayList, false);
         return mDisplayList;
     }
@@ -12741,12 +12767,15 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @see #destroyDrawingCache()
      */
     public Bitmap getDrawingCache(boolean autoScale) {
+        // 1.WILL_NOT_CACHE_DRAWING标记表示此控件不使用软件缓存
         if ((mViewFlags & WILL_NOT_CACHE_DRAWING) == WILL_NOT_CACHE_DRAWING) {
             return null;
         }
+        // 2。DRAWING_CACHE_ENABLED表示了控件使用软件缓存
         if ((mViewFlags & DRAWING_CACHE_ENABLED) == DRAWING_CACHE_ENABLED) {
             buildDrawingCache(autoScale);
         }
+        // 返回mDrawing或mUnscaledDrawingCache
         return autoScale ? mDrawingCache : mUnscaledDrawingCache;
     }
 
@@ -12831,8 +12860,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @see #destroyDrawingCache()
      */
     public void buildDrawingCache(boolean autoScale) {
-        if ((mPrivateFlags & PFLAG_DRAWING_CACHE_VALID) == 0 || (autoScale ?
-                mDrawingCache == null : mUnscaledDrawingCache == null)) {
+        // 仅当软件为invalidate（伴随着View的invalidate）时或控件尚未生成缓存时，此方法才会执行。
+        // 倘若在控件没有被invalidate时仍生成软件缓存，那便失去了缓存的意义。
+        if ((mPrivateFlags & PFLAG_DRAWING_CACHE_VALID) == 0 ||
+                (autoScale ? mDrawingCache == null : mUnscaledDrawingCache == null)) {
             mCachingFailed = false;
 
             int width = mRight - mLeft;
@@ -12851,13 +12882,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             final boolean use32BitCache = attachInfo != null && attachInfo.mUse32BitDrawingCache;
 
             final long projectedBitmapSize = width * height * (opaque && !use32BitCache ? 2 : 4);
-            final long drawingCacheSize =
-                    ViewConfiguration.get(mContext).getScaledMaximumDrawingCacheSize();
+            final long drawingCacheSize = ViewConfiguration.get(mContext).getScaledMaximumDrawingCacheSize();
             if (width <= 0 || height <= 0 || projectedBitmapSize > drawingCacheSize) {
                 if (width > 0 && height > 0) {
-                    Log.w(VIEW_LOG_TAG, "View too large to fit into drawing cache, needs "
-                            + projectedBitmapSize + " bytes, only "
-                            + drawingCacheSize + " available");
+                    Log.w(VIEW_LOG_TAG, "View too large to fit into drawing cache, needs " + projectedBitmapSize + " bytes, only " + drawingCacheSize + " available");
                 }
                 destroyDrawingCache();
                 mCachingFailed = true;
@@ -12866,7 +12894,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
             boolean clear = true;
             Bitmap bitmap = autoScale ? mDrawingCache : mUnscaledDrawingCache;
-
+            // 软件缓存有两块，区别在于mDrawingCache会根据兼容模式进行放大和缩小，而mUnscaleDrawingCache则反映了控件的真实尺寸，这两者的用途是不一样的。
+            // mDrawingCache用于做绘制时的软件缓存，因为绘制到窗口时需要根据兼容模式进行缩放。而mUnscaleDrawCache用于做绘制
             if (bitmap == null || bitmap.getWidth() != width || bitmap.getHeight() != height) {
                 Bitmap.Config quality;
                 if (!opaque) {
@@ -12896,9 +12925,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 if (bitmap != null) bitmap.recycle();
 
                 try {
-                    bitmap = Bitmap.createBitmap(mResources.getDisplayMetrics(),
-                            width, height, quality);
+                    // 1。新建一个缓存。可见软件缓存与缓存尺寸不一致则需要新建一块缓存
+                    bitmap = Bitmap.createBitmap(mResources.getDisplayMetrics(), width, height, quality);
                     bitmap.setDensity(getResources().getDisplayMetrics().densityDpi);
+                    // 保存Bitmap到合适的成员变量中
                     if (autoScale) {
                         mDrawingCache = bitmap;
                     } else {
@@ -12920,18 +12950,25 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
                 clear = drawingCacheBackgroundColor != 0;
             }
-
+            // 确保缓存已经创建以后，就要准备Canvaas了
             Canvas canvas;
             if (attachInfo != null) {
+                // Canvas使用了mAttachInfo中的mCanvas。AttachInfo.mCanvas可说是一个缓存。所有需要刷新软件缓存的控件
+                // 都可以从这里取出这个业已创建好的Canvas进行绘制，以避免每个控件在每次刷新缓存时创建和销毁Canvas所带来的开销
                 canvas = attachInfo.mCanvas;
                 if (canvas == null) {
                     canvas = new Canvas();
                 }
+                // 2。设置软件缓存为Canvas的绘制目标
                 canvas.setBitmap(bitmap);
                 // Temporarily clobber the cached Canvas in case one of our children
                 // is also using a drawing cache. Without this, the children would
                 // steal the canvas by attaching their own bitmap to it and bad, bad
                 // thing would happen (invisible views, corrupted drawings, etc.)
+                // 这是一个有趣却重要的小技巧。AttachInfo.mCanvas是一个公共的缓存。那么控件树中任何一个需要刷新软件缓存的控件都会到这个成员，
+                // 而且都会通过上述setBitmap调用将其绘制目标设置个各自的软件缓存。设想一下，如果此控件的某个子控件也使用软件缓存，那么这个Canvas
+                // 的绘制目标会被这个子控件篡改，结果将是灾难性的。因此在这里将其设置为null，使其子控件不得不创建自己的Canvas。不过兄弟控件之间公用这一个Canvas是没有问题的，因为
+                // 它们的绘制是串行的。
                 attachInfo.mCanvas = null;
             } else {
                 // This case should hopefully never or seldom happen
@@ -12941,7 +12978,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             if (clear) {
                 bitmap.eraseColor(drawingCacheBackgroundColor);
             }
-
+            // 3。计算滚动量并对坐标系进行滚动量变换
             computeScroll();
             final int restoreCount = canvas.save();
 
@@ -12959,6 +12996,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             }
 
             // Fast path for layouts with no backgrounds
+            // 4。draw（Canvas）打火石dispatchDraw（），这已是第三次见到这一熟悉的操作了，
             if ((mPrivateFlags & PFLAG_SKIP_DRAW) == PFLAG_SKIP_DRAW) {
                 mPrivateFlags &= ~PFLAG_DIRTY_MASK;
                 dispatchDraw(canvas);
@@ -13190,33 +13228,44 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * Utility function, called by draw(canvas, parent, drawingTime) to handle the less common
      * case of an active Animation being run on the view.
      */
-    private boolean drawAnimation(ViewGroup parent, long drawingTime,
-                                  Animation a, boolean scalingRequired) {
+    private boolean drawAnimation(ViewGroup parent, long drawingTime, Animation a, boolean scalingRequired) {
         Transformation invalidationTransform;
         final int flags = parent.mGroupFlags;
         final boolean initialized = a.isInitialized();
+        // 1。首先检查Animaiton是否初始化。当尚未初始化时，表明这是动画的第一帧。此时View.onAnimationStart回调将会被调用
         if (!initialized) {
+            // 介绍WMS窗口动画时曾经介绍过Animation.initialize的作用。当动画使用了相对参数时，此处传入的矩形区域将作为参考
             a.initialize(mRight - mLeft, mBottom - mTop, parent.getWidth(), parent.getHeight());
             a.initializeInvalidateRegion(0, 0, mRight - mLeft, mBottom - mTop);
             if (mAttachInfo != null) a.setListenerHandler(mAttachInfo.mHandler);
+            // 注意，onAnimationStart的默认实现会将PFLAG_ANIMATION_STARTED标记加入View.mPrivateFlags中，用以标记正在运行动画。
+            // 因此重写onAnimationStart方法以保证控件系统的正常工作。
             onAnimationStart();
         }
-
+        // 2。计算当前时刻的变换。变换被保存父控件的mChildTransofrmation成员中
         boolean more = a.getTransformation(drawingTime, parent.mChildTransformation, 1f);
+        // 倘若动画继续执行，则需要再次进行invalidate以便进行下一帧的计算与绘制。为了提高效率需要指定invalidate的边界以便在下次绘制时
+        // 仅更新此控件的区域。正常来说，只要调用parent.invalidate(mLeft, mTop, mRight, mBottom)即可。但是因为动画可能会改变控件的绘制位置
+        //（如scaleAnimation，TranslateAnimation等），因此mLeft,mTop,mRight以及mBottom已经不能哟来表示控件在父控件中的最终位置了。
+        // 因此对上述4个参数进行同样的动画变换以正确表示最终位置。为此drawAnimation()使用一个局部变量invalidatationTransofrmation用以表示进行
+        // invalidate时需要的变换
         if (scalingRequired && mAttachInfo.mApplicationScale != 1f) {
+            // 在兼容模式下，控件都被进行了缩放，这个缩放同样会影响invalidate的区域。这一缩放所产生的变换保存在ViewGroup.mInvalidationTransformation中
             if (parent.mInvalidationTransformation == null) {
                 parent.mInvalidationTransformation = new Transformation();
             }
             invalidationTransform = parent.mInvalidationTransformation;
+            // 将动画的变换附加到兼容模式的变换之后
             a.getTransformation(drawingTime, invalidationTransform, 1f);
         } else {
+            // 非兼容模式下，invalidate参数所需的变换与动画变换相同
             invalidationTransform = parent.mChildTransformation;
         }
-
+        // 3。如果动画还将继续，则通过调用父控件的invalidate触发下一次的重绘
         if (more) {
             if (!a.willChangeBounds()) {
-                if ((flags & (ViewGroup.FLAG_OPTIMIZE_INVALIDATE | ViewGroup.FLAG_ANIMATION_DONE)) ==
-                        ViewGroup.FLAG_OPTIMIZE_INVALIDATE) {
+                // 如果动画不改变控件的边界（如AlphaAnimation），则按照控件正常的区域进行invalidate
+                if ((flags & (ViewGroup.FLAG_OPTIMIZE_INVALIDATE | ViewGroup.FLAG_ANIMATION_DONE)) == ViewGroup.FLAG_OPTIMIZE_INVALIDATE) {
                     parent.mGroupFlags |= ViewGroup.FLAG_INVALIDATE_REQUIRED;
                 } else if ((flags & ViewGroup.FLAG_INVALIDATE_REQUIRED) == 0) {
                     // The child need to draw an animation, potentially offscreen, so
@@ -13228,18 +13277,17 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 if (parent.mInvalidateRegion == null) {
                     parent.mInvalidateRegion = new RectF();
                 }
+                // 使用invalidateTransformation对invalidate的4个参数进行变换
                 final RectF region = parent.mInvalidateRegion;
-                a.getInvalidateRegion(0, 0, mRight - mLeft, mBottom - mTop, region,
-                        invalidationTransform);
+                a.getInvalidateRegion(0, 0, mRight - mLeft, mBottom - mTop, region, invalidationTransform);
 
                 // The child need to draw an animation, potentially offscreen, so
                 // make sure we do not cancel invalidate requests
                 parent.mPrivateFlags |= PFLAG_DRAW_ANIMATION;
-
+                // 对四个参数进行修正，并进行invalidate
                 final int left = mLeft + (int) region.left;
                 final int top = mTop + (int) region.top;
-                parent.invalidate(left, top, left + (int) (region.width() + .5f),
-                        top + (int) (region.height() + .5f));
+                parent.invalidate(left, top, left + (int) (region.width() + .5f), top + (int) (region.height() + .5f));
             }
         }
         return more;
@@ -13253,18 +13301,17 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     void setDisplayListProperties(DisplayList displayList) {
         if (displayList != null) {
+            // 1。设置DisplayList的位置和尺寸。注意位置是控件的位置
             displayList.setLeftTopRightBottom(mLeft, mTop, mRight, mBottom);
             displayList.setHasOverlappingRendering(hasOverlappingRendering());
             if (mParent instanceof ViewGroup) {
-                displayList.setClipChildren(
-                        (((ViewGroup)mParent).mGroupFlags & ViewGroup.FLAG_CLIP_CHILDREN) != 0);
+                displayList.setClipChildren((((ViewGroup)mParent).mGroupFlags & ViewGroup.FLAG_CLIP_CHILDREN) != 0);
             }
             float alpha = 1;
-            if (mParent instanceof ViewGroup && (((ViewGroup) mParent).mGroupFlags &
-                    ViewGroup.FLAG_SUPPORT_STATIC_TRANSFORMATIONS) != 0) {
+            if (mParent instanceof ViewGroup &&
+                    (((ViewGroup) mParent).mGroupFlags & ViewGroup.FLAG_SUPPORT_STATIC_TRANSFORMATIONS) != 0) {
                 ViewGroup parentVG = (ViewGroup) mParent;
-                final boolean hasTransform =
-                        parentVG.getChildStaticTransformation(this, parentVG.mChildTransformation);
+                final boolean hasTransform = parentVG.getChildStaticTransformation(this, parentVG.mChildTransformation);
                 if (hasTransform) {
                     Transformation transform = parentVG.mChildTransformation;
                     final int transformType = parentVG.mChildTransformation.getTransformationType();
@@ -13286,6 +13333,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                         alpha = 1;
                     }
                 }
+                // 2。设置控件自身的变换信息到DisplayList。控件自身的变换矩阵就是来自于mTransformationInfo,即这种设置和View.getMatrix是等效的
                 displayList.setTransformationInfo(alpha,
                         mTransformationInfo.mTranslationX, mTransformationInfo.mTranslationY,
                         mTransformationInfo.mRotation, mTransformationInfo.mRotationX,
@@ -13311,7 +13359,12 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * This draw() method is an implementation detail and is not intended to be overridden or
      * to be called from anywhere else other than ViewGroup.drawChild().
      */
+    // useDisplayListProperties: 表示应当通过DisplayList的成员函数来设置坐标系变换，而不是像软件加速那样通过Canvas的变换指令完成。
+    // hardwareAccelerated     : 表示Canvas是否是一个HardwareCanvas
+    // hasDisplayList          : 表示控件是否可能拥有一个DisplayList。这个值取决于HardwareRenderer是否可用
+    // caching以及hasNoCache    : 是与绘图相关的两个条件变量。由于DisplayList被视为广义上的一种缓存，因此在硬件加速绘制时caching为true，而DisplayList又不属于真正意义上的缓存，因此hasNoCache为false。
     boolean draw(Canvas canvas, ViewGroup parent, long drawingTime) {
+        // 1。此方法通过useDisplayListProperties决定是否将变换设置在DisplayList上
         boolean useDisplayListProperties = mAttachInfo != null && mAttachInfo.mHardwareAccelerated;
         boolean more = false;
         final boolean childHasIdentityMatrix = hasIdentityMatrix();
@@ -13321,26 +13374,29 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             parent.mChildTransformation.clear();
             parent.mGroupFlags &= ~ViewGroup.FLAG_CLEAR_TRANSFORMATION;
         }
-
+        // 如果控件处于动画过程中，transformToApply会存储动画在当时点所计算出的Transformation
         Transformation transformToApply = null;
         boolean concatMatrix = false;
 
         boolean scalingRequired = false;
         boolean caching;
+        // 1.首先获取其缓存类型
         int layerType = getLayerType();
-
+        // hardwareAccelerated表示Canvas是否是一个HardwareCanvas
         final boolean hardwareAccelerated = canvas.isHardwareAccelerated();
-        if ((flags & ViewGroup.FLAG_CHILDREN_DRAWN_WITH_CACHE) != 0 ||
-                (flags & ViewGroup.FLAG_ALWAYS_DRAWN_WITH_CACHE) != 0) {
+        if ((flags & ViewGroup.FLAG_CHILDREN_DRAWN_WITH_CACHE) != 0 || (flags & ViewGroup.FLAG_ALWAYS_DRAWN_WITH_CACHE) != 0) {
             caching = true;
             // Auto-scaled apps are not hw-accelerated, no need to set scaling flag on DisplayList
             if (mAttachInfo != null) scalingRequired = mAttachInfo.mScalingRequired;
         } else {
+            // caching表示是否使用缓存。在这里DisplayList也被认为是一种广义上的缓存，因此caching被设置为true
+            // 2。如果缓存类型buweiNONE则表示启用缓存
             caching = (layerType != LAYER_TYPE_NONE) || hardwareAccelerated;
         }
-
+        // 1. 获取startanimation所给予的Animation对象
         final Animation a = getAnimation();
         if (a != null) {
+            // 2。通过drawAnimation方法计算当前时间点的变换（Tranformation）。结果保存在parent.mChildTransofrmation中
             more = drawAnimation(parent, drawingTime, a, scalingRequired);
             concatMatrix = a.willChangeTransformationMatrix();
             if (concatMatrix) {
@@ -13348,20 +13404,17 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             }
             transformToApply = parent.mChildTransformation;
         } else {
-            if ((mPrivateFlags3 & PFLAG3_VIEW_IS_ANIMATING_TRANSFORM) == PFLAG3_VIEW_IS_ANIMATING_TRANSFORM &&
-                    mDisplayList != null) {
+            // 随后的过程在介绍绘制原理时已经说明过了，即把tranformToApply应用到坐标系变换中
+            if ((mPrivateFlags3 & PFLAG3_VIEW_IS_ANIMATING_TRANSFORM) == PFLAG3_VIEW_IS_ANIMATING_TRANSFORM && mDisplayList != null) {
                 // No longer animating: clear out old animation matrix
                 mDisplayList.setAnimationMatrix(null);
                 mPrivateFlags3 &= ~PFLAG3_VIEW_IS_ANIMATING_TRANSFORM;
             }
-            if (!useDisplayListProperties &&
-                    (flags & ViewGroup.FLAG_SUPPORT_STATIC_TRANSFORMATIONS) != 0) {
-                final boolean hasTransform =
-                        parent.getChildStaticTransformation(this, parent.mChildTransformation);
+            if (!useDisplayListProperties && (flags & ViewGroup.FLAG_SUPPORT_STATIC_TRANSFORMATIONS) != 0) {
+                final boolean hasTransform = parent.getChildStaticTransformation(this, parent.mChildTransformation);
                 if (hasTransform) {
                     final int transformType = parent.mChildTransformation.getTransformationType();
-                    transformToApply = transformType != Transformation.TYPE_IDENTITY ?
-                            parent.mChildTransformation : null;
+                    transformToApply = transformType != Transformation.TYPE_IDENTITY ? parent.mChildTransformation : null;
                     concatMatrix = (transformType & Transformation.TYPE_MATRIX) != 0;
                 }
             }
@@ -13374,8 +13427,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         mPrivateFlags |= PFLAG_DRAWN;
 
         if (!concatMatrix &&
-                (flags & (ViewGroup.FLAG_SUPPORT_STATIC_TRANSFORMATIONS |
-                        ViewGroup.FLAG_CLIP_CHILDREN)) == ViewGroup.FLAG_CLIP_CHILDREN &&
+                (flags & (ViewGroup.FLAG_SUPPORT_STATIC_TRANSFORMATIONS | ViewGroup.FLAG_CLIP_CHILDREN)) == ViewGroup.FLAG_CLIP_CHILDREN &&
                 canvas.quickReject(mLeft, mTop, mRight, mBottom, Canvas.EdgeType.BW) &&
                 (mPrivateFlags & PFLAG_DRAW_ANIMATION) == 0) {
             mPrivateFlags2 |= PFLAG2_VIEW_QUICK_REJECTED;
@@ -13391,14 +13443,20 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         }
 
         DisplayList displayList = null;
+        // cache是一个Bitmap类型的变量，用于保存软件缓存
         Bitmap cache = null;
+        // 4。hasDisplayList表示此控件是否拥有DisplayList。这取决于HardwareRenderer是否可用
         boolean hasDisplayList = false;
         if (caching) {
+            // 软件绘制时的缓存处理
             if (!hardwareAccelerated) {
                 if (layerType != LAYER_TYPE_NONE) {
+                    // 软件绘制情况下不支持硬件缓存，因此将强制使用软件缓存
                     layerType = LAYER_TYPE_SOFTWARE;
+                    // 3。buildDrawingCache将在必要时刷新缓存的内容
                     buildDrawingCache(true);
                 }
+                // 4。通过getDrawingCache获取控件的软件缓存，并保存在cache中
                 cache = getDrawingCache(true);
             } else {
                 switch (layerType) {
@@ -13423,19 +13481,24 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 }
             }
         }
+        // 仅当控件有用缓存时才可以将变换应用到DisplayList上
         useDisplayListProperties &= hasDisplayList;
         if (useDisplayListProperties) {
+            // 5。通过getDisplayList获取本控件经过渲染的DisplayList
             displayList = getDisplayList();
             if (!displayList.isValid()) {
                 // Uncommon, but possible. If a view is removed from the hierarchy during the call
                 // to getDisplayList(), the display list will be marked invalid and we should not
                 // try to use it again.
+                // 倘若获取displayList失败，则在后续的流程中使用软件绘制
                 displayList = null;
                 hasDisplayList = false;
                 useDisplayListProperties = false;
             }
         }
-
+        // 2。计算控件内容的滚动量。计算是通过computeScroll来完成的，computeScroll将滚动的计算结果存储在mScrollX/Y两个成员变量 中。
+        // 在一般情况下，子类在实现computeScroll时会考虑使用Scroller类以动画的方式进行滚动。向Scroller设置一下目标的滚动量，以及
+        // 滚动动画的持续时间，Scroller会自动计算在动画过程中本次绘制所需的滚动量。注意这是进行坐标变换的第二个因素
         int sx = 0;
         int sy = 0;
         if (!hasDisplayList) {
@@ -13443,15 +13506,16 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             sx = mScrollX;
             sy = mScrollY;
         }
-
+        // 6。hasNoCache表示并非在软件绘制下使用软件绘图缓存。硬件加速模式下它永远为true
         final boolean hasNoCache = cache == null || hasDisplayList;
-        final boolean offsetForScroll = cache == null && !hasDisplayList &&
-                layerType != LAYER_TYPE_HARDWARE;
-
+        final boolean offsetForScroll = cache == null && !hasDisplayList && layerType != LAYER_TYPE_HARDWARE;
+        // 3。使用Canvas.save保存Canvas的当前状态。此时Canvas的坐标系为父控件的坐标系。在随后将Cavnas变换到此控件的坐标系并完成绘制后，
+        // 会通过Canvas.restoreTo方法将Canvas重置到此时的状态，于是Canvas便可以继续用来绘制父控件的下一个子控件了
         int restoreTo = -1;
         if (!useDisplayListProperties || transformToApply != null) {
             restoreTo = canvas.save();
         }
+        // 4。第一次变换，对应控件位置与滚动量。最先处理的子控件位置mLeft/mTop，以及滚动量。注意子控件的位置mLeft/Top是进行坐标变换的第三个因素
         if (offsetForScroll) {
             canvas.translate(mLeft - sx, mTop - sy);
         } else {
@@ -13470,24 +13534,32 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         }
 
         float alpha = useDisplayListProperties ? 1 : getAlpha();
+        // 倘若此控件的动画所计算出的变换存在（既有动画在执行），或者通过View.setScaleX/Y等方法修改了控件自身的变换，
+        // 则将它们所产生的变换矩阵应用到Canvas中
+        // 倘若有动画正在执行并产生了一个变换矩阵
         if (transformToApply != null || alpha < 1 || !hasIdentityMatrix() ||
                 (mPrivateFlags3 & PFLAG3_VIEW_IS_ANIMATING_ALPHA) == PFLAG3_VIEW_IS_ANIMATING_ALPHA) {
             if (transformToApply != null || !childHasIdentityMatrix) {
                 int transX = 0;
                 int transY = 0;
-
+                // 记录滚动量
                 if (offsetForScroll) {
                     transX = -sx;
                     transY = -sy;
                 }
-
+                // 将动画产生的滚动量变换矩阵应用到Canvas
                 if (transformToApply != null) {
                     if (concatMatrix) {
                         if (useDisplayListProperties) {
+                            // useDisplayListProperties表示使用硬件加速，由于硬件加速与软件绘制方式上的差异，
+                            // 应用变换矩阵的方式也不同。在讨论硬件加速时再分析这部分内容
+                            // 7。将变换矩阵设置到DisplayLists中
                             displayList.setAnimationMatrix(transformToApply.getMatrix());
                         } else {
                             // Undo the scroll translation, apply the transformation matrix,
                             // then redo the scroll translate to get the correct result.
+                            // 5。将动画产生的变换矩阵应用到Canvas中
+                            // 注意，这里首先撤销了对滚动量的变换，在将动画的变换矩阵应用给Canvas之后，重新应用滚动量变换
                             canvas.translate(-transX, -transY);
                             canvas.concat(transformToApply.getMatrix());
                             canvas.translate(transX, transY);
@@ -13501,7 +13573,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                         parent.mGroupFlags |= ViewGroup.FLAG_CLEAR_TRANSFORMATION;
                     }
                 }
-
+                // 6。将控件自身的变换矩阵应用到Canvas中。和动画矩阵一样，首先撤销了滚动量的变换，然后应用到变换矩阵到Canvas后在重新应用到滚动量。
+                // 控件自身的变换矩阵是进行坐标系变换的第四个因素。
                 if (!childHasIdentityMatrix && !useDisplayListProperties) {
                     canvas.translate(-transX, -transY);
                     canvas.concat(getMatrix());
@@ -13510,8 +13583,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             }
 
             // Deal with alpha if it is or used to be <1
-            if (alpha < 1 ||
-                    (mPrivateFlags3 & PFLAG3_VIEW_IS_ANIMATING_ALPHA) == PFLAG3_VIEW_IS_ANIMATING_ALPHA) {
+            if (alpha < 1 || (mPrivateFlags3 & PFLAG3_VIEW_IS_ANIMATING_ALPHA) == PFLAG3_VIEW_IS_ANIMATING_ALPHA) {
                 if (alpha < 1) {
                     mPrivateFlags3 |= PFLAG3_VIEW_IS_ANIMATING_ALPHA;
                 } else {
@@ -13522,8 +13594,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                     final int multipliedAlpha = (int) (255 * alpha);
                     if (!onSetAlpha(multipliedAlpha)) {
                         int layerFlags = Canvas.HAS_ALPHA_LAYER_SAVE_FLAG;
-                        if ((flags & ViewGroup.FLAG_CLIP_CHILDREN) != 0 ||
-                                layerType != LAYER_TYPE_NONE) {
+                        if ((flags & ViewGroup.FLAG_CLIP_CHILDREN) != 0 || layerType != LAYER_TYPE_NONE) {
                             layerFlags |= Canvas.CLIP_TO_LAYER_SAVE_FLAG;
                         }
                         if (useDisplayListProperties) {
@@ -13544,9 +13615,12 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             onSetAlpha(255);
             mPrivateFlags &= ~PFLAG_ALPHA_SET;
         }
-
-        if ((flags & ViewGroup.FLAG_CLIP_CHILDREN) == ViewGroup.FLAG_CLIP_CHILDREN &&
-                !useDisplayListProperties) {
+        // 7。设置裁剪。当父控件的mGroupFlags包含FLAG_CLIP_CHILDREN时，子控件在绘制之前必须通过canvas.clipRect()方法设置裁剪区域。
+        // 注意要和dispatchDraw中裁剪工作加以区分。
+        // dispatchDraw中的裁剪是为了保证所有的子控件绘制的内容不得越过ViewGroup的边界。其设置由setClipToPadding来完成。
+        // 而FLAG_CLIP+CHILDREN则表示所有子控件的绘制内容不得超出子控件自身的边界，由setClipChildren方法启用或禁用这一行为。
+        // 另外注意，如上一小节所述，Canvas此时已经经过了mScrollX/Y的变换，正处在控件内容的坐标系下，因此设置裁剪区域时需要将mScrollX/Y计算在内
+        if ((flags & ViewGroup.FLAG_CLIP_CHILDREN) == ViewGroup.FLAG_CLIP_CHILDREN && !useDisplayListProperties) {
             if (offsetForScroll) {
                 canvas.clipRect(sx, sy, sx + (mRight - mLeft), sy + (mBottom - mTop));
             } else {
@@ -13568,7 +13642,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 hasDisplayList = false;
             }
         }
-
+        // 由于本节讨论的是在不使用绘图缓存情况下的绘制过程，所以hasNoCache为true
         if (hasNoCache) {
             boolean layerRendered = false;
             if (layerType == LAYER_TYPE_HARDWARE && !useDisplayListProperties) {
@@ -13589,6 +13663,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             if (!layerRendered) {
                 if (!hasDisplayList) {
                     // Fast path for layouts with no backgrounds
+                    // 8。使用变换过的Canvas进行最终绘制
                     if ((mPrivateFlags & PFLAG_SKIP_DRAW) == PFLAG_SKIP_DRAW) {
                         mPrivateFlags &= ~PFLAG_DIRTY_MASK;
                         dispatchDraw(canvas);
@@ -13597,6 +13672,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                     }
                 } else {
                     mPrivateFlags &= ~PFLAG_DIRTY_MASK;
+                    // 8. drawDisplaList将控件的DisplayList绘制在给定的Canvas上
                     ((HardwareCanvas) canvas).drawDisplayList(displayList, null, flags);
                 }
             }
@@ -13622,9 +13698,11 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 cachePaint = mLayerPaint;
                 cachePaint.setAlpha((int) (alpha * 255));
             }
+            // 5。将软件缓存cache绘制到Canvas上。其中cachePaint保存了View.setLayerType时候所传入的参数
             canvas.drawBitmap(cache, 0.0f, 0.0f, cachePaint);
         }
-
+        // 9。恢复Canvas的状态到一切开始之前。于是Canvas便回到父控件的坐标系。于是父控件的dispatchDraw便可以将这个Canvas交给下一个子控件
+        // 的draw(ViewGroup, Canvas, long)方法
         if (restoreTo >= 0) {
             canvas.restoreToCount(restoreTo);
         }
@@ -13648,7 +13726,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         }
 
         mRecreateDisplayList = false;
-
+        // more来自动画计算，倘若动画仍继续，则more为true
         return more;
     }
 
@@ -13663,6 +13741,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     public void draw(Canvas canvas) {
         final int privateFlags = mPrivateFlags;
+        // 通过检查PFLAG_DIRTY_OPAQUE是否存在于mPrivateFlags中以确定是否是"实心"控件
         final boolean dirtyOpaque = (privateFlags & PFLAG_DIRTY_MASK) == PFLAG_DIRTY_OPAQUE &&
                 (mAttachInfo == null || !mAttachInfo.mIgnoreDirtyState);
         mPrivateFlags = (privateFlags & ~PFLAG_DIRTY_MASK) | PFLAG_DRAWN;
@@ -13681,7 +13760,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
         // Step 1, draw the background, if needed
         int saveCount;
-
+        // 1。首先是绘制背景。注意，如6。4。2节所述，为了提高效率，"实心"控件的背景绘制工作会被跳过
         if (!dirtyOpaque) {
             final Drawable background = mBackground;
             if (background != null) {
@@ -13692,10 +13771,13 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                     background.setBounds(0, 0,  mRight - mLeft, mBottom - mTop);
                     mBackgroundSizeChanged = false;
                 }
-
+                // 将背景绘制到Canvas上
                 if ((scrollX | scrollY) == 0) {
                     background.draw(canvas);
                 } else {
+                    // 这里是一个有趣的处理。注意draw(Canvas)方法是在控件自身的坐标系下调用的。就是说Canvas已经根据其mScrollX/Y
+                    // 对Canvas进行了变换以实现控件滚动的效果，从而所绘制的背景也会被滚动。不过Android希望仅滚动控件的内容，而保持背景禁止。
+                    // 因此在绘制背景时会首先进行滚动的逆变已撤销先前是想的滚动变换，完成背景绘制之后再将滚动变换重新应用到Canvas上
                     canvas.translate(scrollX, scrollY);
                     background.draw(canvas);
                     canvas.translate(-scrollX, -scrollY);
@@ -13707,20 +13789,31 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         final int viewFlags = mViewFlags;
         boolean horizontalEdges = (viewFlags & FADING_EDGE_HORIZONTAL) != 0;
         boolean verticalEdges = (viewFlags & FADING_EDGE_VERTICAL) != 0;
+        // 倘若控件不需要绘制渐变边界，则可以进入简便绘制流程
         if (!verticalEdges && !horizontalEdges) {
             // Step 3, draw the content
+            // 2。通过调用onDraw方法绘制控件自身的内容
             if (!dirtyOpaque) onDraw(canvas);
 
             // Step 4, draw the children
+            // 3。通过调用dispatchDraw方法绘制子控件。如果当前控件不是一个ViewGroup，此方法什么都不做
             dispatchDraw(canvas);
 
             // Step 6, draw decorations (scrollbars)
+            // 4。如果有必要，根据滚动状态绘制滚动条
             onDrawScrollBars(canvas);
 
             // we're done...
+            // 完成控件的绘制
             return;
         }
+        // 上面主要有4步
+        // 1。绘制背景，注意背景不会收到滚动的影响
+        // 2。通过调用onDraw方法绘制控件自身的内容
+        // 3。通过调用dispatchDraw绘制其子控件
+        // 4。绘制控件的装饰，即滚动条
 
+        // 接下来是完整绘制流程，完整绘制流程除了包含上面的简便流程之外，还包括绘制渐变边界的工作
         /*
          * Here we do the full fledged routine...
          * (this is an uncommon case where speed matters less,
@@ -15809,8 +15902,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     public void startAnimation(Animation animation) {
         animation.setStartTime(Animation.START_ON_FIRST_FRAME);
+        // 保存Animation对象
         setAnimation(animation);
         invalidateParentCaches();
+        // invalidate操作，以此触发以此重绘
         invalidate(true);
     }
 

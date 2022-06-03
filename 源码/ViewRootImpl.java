@@ -2107,13 +2107,15 @@ public final class ViewRootImpl implements ViewParent,
 
         mIsDrawing = true;
         Trace.traceBegin(Trace.TRACE_TAG_VIEW, "draw");
+        // 1. 调用draw方法进行实际的绘制操作
         try {
             draw(fullRedrawNeeded);
         } finally {
             mIsDrawing = false;
             Trace.traceEnd(Trace.TRACE_TAG_VIEW);
         }
-
+        // 2。通知WMS绘制已经完成。如前文所示，如果mReportNextDraw为true，表示WMS正在等待finishDrawingWindow回调
+        // 以便将窗口的绘制状态切换至COMMIT_DRAW_PENDING
         if (mReportNextDraw) {
             mReportNextDraw = false;
 
@@ -2126,8 +2128,7 @@ public final class ViewRootImpl implements ViewParent,
                 if (callbacks != null) {
                     for (SurfaceHolder.Callback c : callbacks) {
                         if (c instanceof SurfaceHolder.Callback2) {
-                            ((SurfaceHolder.Callback2)c).surfaceRedrawNeeded(
-                                    mSurfaceHolder);
+                            ((SurfaceHolder.Callback2)c).surfaceRedrawNeeded(mSurfaceHolder);
                         }
                     }
                 }
@@ -2158,7 +2159,11 @@ public final class ViewRootImpl implements ViewParent,
                 }
             }
         }
-
+        // 计算mView在垂直方向的滚动量（ScrollY），滚动将保存在mScroller与mScrollY中，ViewRootImpl所计算的滚动量
+        // 的目的与ScrollView或ListView计算的滚动量的意义有别。在VisibleInsets存在的情况下，ViewRootImpl需要保证
+        // 某个关键的控件是可见的。例如当输入法弹出时，接收输入的TextView必须位于不被输入法遮挡的区域内。倘若布局结果使得
+        // 它被输入法遮挡，就必须根据VisibleInset与它的相对位置计算一个滚动量，使得整个控件树的绘制位置产生偏移从而将
+        // TextView露出来。计算所得的滚动量被保存在mScroller中。
         scrollToRectOrFocus(null, false);
 
         final AttachInfo attachInfo = mAttachInfo;
@@ -2168,12 +2173,17 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         int yoff;
+        // 上述的滚动量记录在mScroller中，为的是这个滚动显得不那么突兀。ViewRootImpl使用mScroller产生一个动画效果。
+        // mScroller类似一个差值器，用于计算本次绘制的时间点所需要使用的滚动量。
         boolean animating = mScroller != null && mScroller.computeScrollOffset();
         if (animating) {
+            // 倘若mScroller正在执行滚动动画，则采用mScroller所计算的滚动量
             yoff = mScroller.getCurrY();
         } else {
+            //倘若mScroller的动画已经结束，则直接使用上面的scrollToRectOrFocus所计算的滚动量
             yoff = mScrollY;
         }
+        // 倘若新计算的滚动量与上次绘制的滚动量不同，则必须进行完整重绘。这很容易理解，因为发生滚动时，整个画面都需要更新。
         if (mCurScrollY != yoff) {
             mCurScrollY = yoff;
             fullRedrawNeeded = true;
@@ -2182,6 +2192,8 @@ public final class ViewRootImpl implements ViewParent,
         final float appScale = attachInfo.mApplicationScale;
         final boolean scalingRequired = attachInfo.mScalingRequired;
 
+        // 这段代码的意义是在ResizeBuffer持续的时间内计算一个随时间流逝而递减透明度并保存在mResizeAlpha中。
+        // 而当前时间点超过了ResizeBuffer的持续时间后则通过销毁mResizeBuffer以结束ResizeBuffer动画
         int resizeAlpha = 0;
         if (mResizeBuffer != null) {
             long deltaTime = SystemClock.uptimeMillis() - mResizeBufferStartTime;
@@ -2207,7 +2219,7 @@ public final class ViewRootImpl implements ViewParent,
             }
             return;
         }
-
+        // 如果需要进行完整重绘，则修改在脏区域为整个窗口
         if (fullRedrawNeeded) {
             attachInfo.mIgnoreDirtyState = true;
             dirty.set(0, 0, (int) (mWidth * appScale + 0.5f), (int) (mHeight * appScale + 0.5f));
@@ -2225,6 +2237,8 @@ public final class ViewRootImpl implements ViewParent,
         attachInfo.mTreeObserver.dispatchOnDraw();
 
         if (!dirty.isEmpty() || mIsAnimating) {
+            // 1。 当满足一下条件时，表示此窗口采用硬件加速的绘制方式。硬件加速的绘制入口是HardWareRenderer.draw方法
+            // 硬件绘制采用的是Hardwarerenderer.draw()的方法
             if (attachInfo.mHardwareRenderer != null && attachInfo.mHardwareRenderer.isEnabled()) {
                 // Draw with hardware renderer.
                 mIsAnimating = false;
@@ -2236,15 +2250,15 @@ public final class ViewRootImpl implements ViewParent,
                 mPreviousDirty.set(dirty);
                 dirty.setEmpty();
 
-                if (attachInfo.mHardwareRenderer.draw(mView, attachInfo, this,
-                        animating ? null : mCurrentDirty)) {
+                if (attachInfo.mHardwareRenderer.draw(mView, attachInfo, this, animating ? null : mCurrentDirty)) {
                     mPreviousDirty.set(0, 0, mWidth, mHeight);
                 }
+            // 2。而软件绘制的入口则是drawSoftware方法
             } else if (!drawSoftware(surface, attachInfo, yoff, scalingRequired, dirty)) {
                 return;
             }
         }
-
+        // 如果mScroller仍在动画过程中，则立即安排下一次重绘
         if (animating) {
             mFullRedrawNeeded = true;
             scheduleTraversals();
@@ -2253,6 +2267,11 @@ public final class ViewRootImpl implements ViewParent,
 
     /**
      * @return true if drawing was succesfull, false if an error occurred
+     * 主要4个步骤：
+     * 第一步：通过Surface.lockCanvas获取一个用于绘制的Canvas
+     * 第二步：对Canvas进行变换以实现滚动效果
+     * 第三步：通过mView.draw将跟控件绘制在Canvas上
+     * 第四步：通过Surface.unlockCanvasAndPost显示绘制后的内容
      */
     private boolean drawSoftware(Surface surface, AttachInfo attachInfo, int yoff,
                                  boolean scalingRequired, Rect dirty) {
@@ -2270,21 +2289,22 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         // Draw with software renderer.
+        // 绘制所需要的Canvas
         Canvas canvas;
         try {
             int left = dirty.left;
             int top = dirty.top;
             int right = dirty.right;
             int bottom = dirty.bottom;
-
+            // 1。通过Surface.lockCanvas()获取一个以此Surface为画布的Canvas。注意其参数为前面所计算的脏区域
             canvas = mSurface.lockCanvas(dirty);
 
-            if (left != dirty.left || top != dirty.top || right != dirty.right ||
-                    bottom != dirty.bottom) {
+            if (left != dirty.left || top != dirty.top || right != dirty.right || bottom != dirty.bottom) {
                 attachInfo.mIgnoreDirtyState = true;
             }
 
             // TODO: Do this in native
+            // 绘制即将开始之前，首先清空之前所计算的脏区域。这样一来，如果在绘制的过程中执行了View.invalidate，则可以重新计算脏区域
             canvas.setDensity(mDensity);
         } catch (Surface.OutOfResourcesException e) {
             Log.e(TAG, "OutOfResourcesException locking surface", e);
@@ -2308,8 +2328,7 @@ public final class ViewRootImpl implements ViewParent,
 
         try {
             if (DEBUG_ORIENTATION || DEBUG_DRAW) {
-                Log.v(TAG, "Surface " + surface + " drawing to bitmap w="
-                        + canvas.getWidth() + ", h=" + canvas.getHeight());
+                Log.v(TAG, "Surface " + surface + " drawing to bitmap w=" + canvas.getWidth() + ", h=" + canvas.getHeight());
                 //canvas.drawARGB(255, 255, 0, 0);
             }
 
@@ -2327,23 +2346,24 @@ public final class ViewRootImpl implements ViewParent,
 
             dirty.setEmpty();
             mIsAnimating = false;
+            // 将当前的时间戳保存在AttachInfo.mDrawingTime中，随后控件进行绘制时可以根据这个时间戳以确定动画参数
             attachInfo.mDrawingTime = SystemClock.uptimeMillis();
             mView.mPrivateFlags |= View.PFLAG_DRAWN;
 
             if (DEBUG_DRAW) {
                 Context cxt = mView.getContext();
-                Log.i(TAG, "Drawing: package:" + cxt.getPackageName() +
-                        ", metrics=" + cxt.getResources().getDisplayMetrics() +
-                        ", compatibilityInfo=" + cxt.getResources().getCompatibilityInfo());
+                Log.i(TAG, "Drawing: package:" + cxt.getPackageName() + ", metrics=" + cxt.getResources().getDisplayMetrics() + ", compatibilityInfo=" + cxt.getResources().getCompatibilityInfo());
             }
             try {
+                // 2。使Canvas进行第一次变换。以此变换的目的是使得其坐标系按照之前所计算的滚动量进行相应的滚动。
+                // 随后绘制的内容都会在滚动后的新坐标系下进行
                 canvas.translate(0, -yoff);
                 if (mTranslator != null) {
                     mTranslator.translateCanvas(canvas);
                 }
                 canvas.setScreenDensity(scalingRequired ? mNoncompatDensity : 0);
                 attachInfo.mSetIgnoreDirtyState = false;
-
+                // 3。通过mView.draw在Canvas上绘制整个控件树
                 mView.draw(canvas);
 
                 drawAccessibilityFocusedDrawableIfNeeded(canvas);
@@ -2355,6 +2375,7 @@ public final class ViewRootImpl implements ViewParent,
             }
         } finally {
             try {
+                // 4。最后的步骤，通过Surface.unlockCanvasAndPost方法显示绘制后的内容
                 surface.unlockCanvasAndPost(canvas);
             } catch (IllegalArgumentException e) {
                 Log.e(TAG, "Could not unlock surface", e);
@@ -2446,8 +2467,7 @@ public final class ViewRootImpl implements ViewParent,
         int scrollY = 0;
         boolean handled = false;
 
-        if (vi.left > ci.left || vi.top > ci.top
-                || vi.right > ci.right || vi.bottom > ci.bottom) {
+        if (vi.left > ci.left || vi.top > ci.top || vi.right > ci.right || vi.bottom > ci.bottom) {
             // We'll assume that we aren't going to change the scroll
             // offset, since we want to avoid that unless it is actually
             // going to make the focus visible...  otherwise we scroll
@@ -2475,16 +2495,12 @@ public final class ViewRootImpl implements ViewParent,
                 // view is visible.
                 rectangle = null;
             }
-            if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Eval scroll: focus=" + focus
-                    + " rectangle=" + rectangle + " ci=" + ci
-                    + " vi=" + vi);
-            if (focus == mLastScrolledFocus && !mScrollMayChange
-                    && rectangle == null) {
+            if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Eval scroll: focus=" + focus + " rectangle=" + rectangle + " ci=" + ci + " vi=" + vi);
+            if (focus == mLastScrolledFocus && !mScrollMayChange && rectangle == null) {
                 // Optimization: if the focus hasn't changed since last
                 // time, and no layout has happened, then just leave things
                 // as they are.
-                if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Keeping scroll y="
-                        + mScrollY + " vi=" + vi.toShortString());
+                if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Keeping scroll y=" + mScrollY + " vi=" + vi.toShortString());
             } else if (focus != null) {
                 // We need to determine if the currently focused view is
                 // within the visible part of the window and, if not, apply
@@ -2494,49 +2510,31 @@ public final class ViewRootImpl implements ViewParent,
                 if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Need to scroll?");
                 // Try to find the rectangle from the focus view.
                 if (focus.getGlobalVisibleRect(mVisRect, null)) {
-                    if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Root w="
-                            + mView.getWidth() + " h=" + mView.getHeight()
-                            + " ci=" + ci.toShortString()
-                            + " vi=" + vi.toShortString());
+                    if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Root w=" + mView.getWidth() + " h=" + mView.getHeight() + " ci=" + ci.toShortString() + " vi=" + vi.toShortString());
                     if (rectangle == null) {
                         focus.getFocusedRect(mTempRect);
-                        if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Focus " + focus
-                                + ": focusRect=" + mTempRect.toShortString());
+                        if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Focus " + focus + ": focusRect=" + mTempRect.toShortString());
                         if (mView instanceof ViewGroup) {
-                            ((ViewGroup) mView).offsetDescendantRectToMyCoords(
-                                    focus, mTempRect);
+                            ((ViewGroup) mView).offsetDescendantRectToMyCoords(focus, mTempRect);
                         }
-                        if (DEBUG_INPUT_RESIZE) Log.v(TAG,
-                                "Focus in window: focusRect="
-                                        + mTempRect.toShortString()
-                                        + " visRect=" + mVisRect.toShortString());
+                        if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Focus in window: focusRect=" + mTempRect.toShortString() + " visRect=" + mVisRect.toShortString());
                     } else {
                         mTempRect.set(rectangle);
-                        if (DEBUG_INPUT_RESIZE) Log.v(TAG,
-                                "Request scroll to rect: "
-                                        + mTempRect.toShortString()
-                                        + " visRect=" + mVisRect.toShortString());
+                        if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Request scroll to rect: " + mTempRect.toShortString() + " visRect=" + mVisRect.toShortString());
                     }
                     if (mTempRect.intersect(mVisRect)) {
-                        if (DEBUG_INPUT_RESIZE) Log.v(TAG,
-                                "Focus window visible rect: "
-                                        + mTempRect.toShortString());
+                        if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Focus window visible rect: " + mTempRect.toShortString());
                         if (mTempRect.height() >
                                 (mView.getHeight()-vi.top-vi.bottom)) {
                             // If the focus simply is not going to fit, then
                             // best is probably just to leave things as-is.
-                            if (DEBUG_INPUT_RESIZE) Log.v(TAG,
-                                    "Too tall; leaving scrollY=" + scrollY);
+                            if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Too tall; leaving scrollY=" + scrollY);
                         } else if ((mTempRect.top-scrollY) < vi.top) {
                             scrollY -= vi.top - (mTempRect.top-scrollY);
-                            if (DEBUG_INPUT_RESIZE) Log.v(TAG,
-                                    "Top covered; scrollY=" + scrollY);
-                        } else if ((mTempRect.bottom-scrollY)
-                                > (mView.getHeight()-vi.bottom)) {
-                            scrollY += (mTempRect.bottom-scrollY)
-                                    - (mView.getHeight()-vi.bottom);
-                            if (DEBUG_INPUT_RESIZE) Log.v(TAG,
-                                    "Bottom covered; scrollY=" + scrollY);
+                            if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Top covered; scrollY=" + scrollY);
+                        } else if ((mTempRect.bottom-scrollY) > (mView.getHeight()-vi.bottom)) {
+                            scrollY += (mTempRect.bottom-scrollY) - (mView.getHeight()-vi.bottom);
+                            if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Bottom covered; scrollY=" + scrollY);
                         }
                         handled = true;
                     }
@@ -2545,8 +2543,7 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         if (scrollY != mScrollY) {
-            if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Pan scroll changed: old="
-                    + mScrollY + " , new=" + scrollY);
+            if (DEBUG_INPUT_RESIZE) Log.v(TAG, "Pan scroll changed: old=" + mScrollY + " , new=" + scrollY);
             if (!immediate && mResizeBuffer == null) {
                 if (mScroller == null) {
                     mScroller = new Scroller(mView.getContext());

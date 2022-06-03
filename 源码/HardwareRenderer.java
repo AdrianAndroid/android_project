@@ -1144,9 +1144,10 @@ public abstract class HardwareRenderer {
                 attachInfo.mDrawingTime = SystemClock.uptimeMillis();
 
                 view.mPrivateFlags |= View.PFLAG_DRAWN;
-
+                // 1. 将EGLSurface设置为OpenGL ES当前的输出目标
                 final int surfaceState = checkCurrent();
                 if (surfaceState != SURFACE_STATE_ERROR) {
+                    // 2。获取对应的HardwareCanvas
                     HardwareCanvas canvas = mCanvas;
                     attachInfo.mHardwareCanvas = canvas;
 
@@ -1176,8 +1177,8 @@ public abstract class HardwareRenderer {
                     int status = DisplayList.STATUS_DONE;
 
                     try {
-                        view.mRecreateDisplayList = (view.mPrivateFlags & View.PFLAG_INVALIDATED)
-                                == View.PFLAG_INVALIDATED;
+                        // 如果根控件被invalidate过，则标记它随后需要刷新其DisplayList
+                        view.mRecreateDisplayList = (view.mPrivateFlags & View.PFLAG_INVALIDATED) == View.PFLAG_INVALIDATED;
                         view.mPrivateFlags &= ~View.PFLAG_INVALIDATED;
 
                         long getDisplayListStartTime = 0;
@@ -1194,6 +1195,7 @@ public abstract class HardwareRenderer {
 
                         DisplayList displayList;
                         Trace.traceBegin(Trace.TRACE_TAG_VIEW, "getDisplayList");
+                        // 3。获取根控件的DisplayList
                         try {
                             displayList = view.getDisplayList();
                         } finally {
@@ -1201,11 +1203,15 @@ public abstract class HardwareRenderer {
                         }
 
                         Trace.traceBegin(Trace.TRACE_TAG_VIEW, "prepareFrame");
+                        // 之后的迪马将有可能对Canvas进行变换操作，因此首先保存其状态并在绘制完成后恢复，以便不影响下次绘制
                         try {
                             status = onPreDraw(dirty);
                         } finally {
                             Trace.traceEnd(Trace.TRACE_TAG_VIEW);
                         }
+                        // 4。由callbacks在绘制前进行一些必要的操作。Callbacks其实是ViewRootImpl。它在onHardwarePreDraw中将会调用
+                        // Canvas.translate以设置Y方向上的滚动量，在软件绘制的drawSoftware中也有过这个操作。由于硬件绘制由HardwareRenderer托管，
+                        // 因此这一操作只能以回调的方式完成
                         saveCount = canvas.save();
                         callbacks.onHardwarePreDraw(canvas);
 
@@ -1223,6 +1229,7 @@ public abstract class HardwareRenderer {
                             }
 
                             Trace.traceBegin(Trace.TRACE_TAG_VIEW, "drawDisplayList");
+                            // 5。绘制根控件的DisplayList
                             try {
                                 status |= canvas.drawDisplayList(displayList, mRedrawClip,
                                         DisplayList.FLAG_CLIP_CHILDREN);
@@ -1242,7 +1249,9 @@ public abstract class HardwareRenderer {
                             view.draw(canvas);
                         }
                     } finally {
+                        // 6。由callbacs（即ViewRootImpl）进行绘制后的工作。在这里ViewRootImpl将绘制ResizeBuffer动画
                         callbacks.onHardwarePostDraw(canvas);
+                        // 恢复Canvas到绘制前的状态
                         canvas.restoreToCount(saveCount);
                         view.mRecreateDisplayList = false;
 
@@ -1269,7 +1278,7 @@ public abstract class HardwareRenderer {
                         if (mProfileEnabled) {
                             eglSwapBuffersStartTime = System.nanoTime();
                         }
-
+                        // 7。发布绘制的内容。与软件绘制中的Surface.unlockCanvasAndPost工作一致
                         sEgl.eglSwapBuffers(sEglDisplay, mEglSurface);
 
                         if (mProfileEnabled) {
@@ -1345,11 +1354,9 @@ public abstract class HardwareRenderer {
                         "Current thread: " + Thread.currentThread());
             }
 
-            if (!mEglContext.equals(sEgl.eglGetCurrentContext()) ||
-                    !mEglSurface.equals(sEgl.eglGetCurrentSurface(EGL_DRAW))) {
+            if (!mEglContext.equals(sEgl.eglGetCurrentContext()) || !mEglSurface.equals(sEgl.eglGetCurrentSurface(EGL_DRAW))) {
                 if (!sEgl.eglMakeCurrent(sEglDisplay, mEglSurface, mEglSurface, mEglContext)) {
-                    Log.e(LOG_TAG, "eglMakeCurrent failed " +
-                            GLUtils.getEGLErrorString(sEgl.eglGetError()));
+                    Log.e(LOG_TAG, "eglMakeCurrent failed " + GLUtils.getEGLErrorString(sEgl.eglGetError()));
                     fallback(true);
                     return SURFACE_STATE_ERROR;
                 } else {
