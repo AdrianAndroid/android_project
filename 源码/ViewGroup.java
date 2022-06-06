@@ -574,17 +574,20 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         }
 
         // Unfocus us, if necessary
+        // 1。如果上一个焦点控件就是这个ViewGroup，则通过调用View.unFocus将PFLAG_FOCUSED标记移除，以释放焦点
         super.unFocus();
 
         // We had a previous notion of who had focus. Clear it.
         if (mFocused != child) {
+            // 2。如果上一个焦点控件在这个ViewGroup所表示的控件树之中，即mFocused不为null，则调用mFocused.unFocus以释放焦点
             if (mFocused != null) {
                 mFocused.unFocus();
             }
-
+            // 3。设置mFocused成员为child。注意child参数并不是实际拥有焦点的控件。而是此ViewGroup的直接子控件，同时它是实际拥有焦点的控件的父控件
             mFocused = child;
         }
         if (mParent != null) {
+            // 4。将这一操作继续像控件树的根部回溯。注意child参数是此ViewGroup，而不是实际拥有焦点的focused。
             mParent.requestChildFocus(this, focused);
         }
     }
@@ -636,8 +639,15 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
             // root namespace means we should consider ourselves the top of the
             // tree for focus searching; otherwise we could be focus searching
             // into other tabs.  see LocalActivityManager and TabHost for more info
-            return FocusFinder.getInstance().findNextFocus(this, focused, direction);
+            // 如果isRootNamespace返回true，则表示这是一个根控件。此时ViewGroup拥有整个控件树，因此它是负责焦点查找的最合适的人选。
+            // 它使用了FocusFinder工具类进行焦点查找
+            return FocusFinder.getInstance().findNextFocus(
+                    this, // 即root。findNextFocus方法通过这个参数获取整个控件树中所有的候选控件
+                    focused, //表示当前拥有焦点的控件。findNextFocus方法会以这个控件所在的位置开始查找
+                    direction // 表示了查找的方向
+            );
         } else if (mParent != null) {
+            // 2。如果这不是跟控件，则继续向控件树的根部回溯
             return mParent.focusSearch(focused, direction);
         }
         return null;
@@ -780,9 +790,12 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
             System.out.println(this + " unFocus()");
         }
         if (mFocused == null) {
+            // 如果mFocused为空，则表示此ViewGroup位于mFocused单向链表的尾端，即此ViewGroup是焦点的实际拥有者，因此调用View.unFocus使此ViewGroup放弃焦点
             super.unFocus();
         } else {
+            // 否则将unFocus传递给链表的下一个控件
             mFocused.unFocus();
+            // 最后将mFocused设置为空
             mFocused = null;
         }
     }
@@ -1330,11 +1343,11 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
      */
     @Override
     public boolean dispatchKeyEventPreIme(KeyEvent event) {
-        if ((mPrivateFlags & (PFLAG_FOCUSED | PFLAG_HAS_BOUNDS))
-                == (PFLAG_FOCUSED | PFLAG_HAS_BOUNDS)) {
+        if ((mPrivateFlags & (PFLAG_FOCUSED | PFLAG_HAS_BOUNDS)) == (PFLAG_FOCUSED | PFLAG_HAS_BOUNDS)) {
+            // 如果此ViewGroup是焦点的拥有者，则直接调用view.dispatchKeyEventPreIme尝试消费事件
             return super.dispatchKeyEventPreIme(event);
-        } else if (mFocused != null && (mFocused.mPrivateFlags & PFLAG_HAS_BOUNDS)
-                == PFLAG_HAS_BOUNDS) {
+        } else if (mFocused != null && (mFocused.mPrivateFlags & PFLAG_HAS_BOUNDS) == PFLAG_HAS_BOUNDS) {
+            // 倘若mFocused不为null，则把dispatchKeyEventPreIme传递个mFocused
             return mFocused.dispatchKeyEventPreIme(event);
         }
         return false;
@@ -1349,13 +1362,13 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
             mInputEventConsistencyVerifier.onKeyEvent(event, 1);
         }
 
-        if ((mPrivateFlags & (PFLAG_FOCUSED | PFLAG_HAS_BOUNDS))
-                == (PFLAG_FOCUSED | PFLAG_HAS_BOUNDS)) {
+        if ((mPrivateFlags & (PFLAG_FOCUSED | PFLAG_HAS_BOUNDS)) == (PFLAG_FOCUSED | PFLAG_HAS_BOUNDS)) {
+            // 1。如果此ViewGroup拥有焦点，则调用View.dispatchKeyEvent尝试消费事件
             if (super.dispatchKeyEvent(event)) {
                 return true;
             }
-        } else if (mFocused != null && (mFocused.mPrivateFlags & PFLAG_HAS_BOUNDS)
-                == PFLAG_HAS_BOUNDS) {
+        } else if (mFocused != null && (mFocused.mPrivateFlags & PFLAG_HAS_BOUNDS) == PFLAG_HAS_BOUNDS) {
+            // 2。倘若此ViewGroup不拥有焦点，则将事件沿着mFocused链表进行传递
             if (mFocused.dispatchKeyEvent(event)) {
                 return true;
             }
@@ -1437,8 +1450,7 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
                 HoverTarget lastHoverTarget = null;
                 for (int i = childrenCount - 1; i >= 0; i--) {
                     final View child = children[i];
-                    if (!canViewReceivePointerEvents(child)
-                            || !isTransformedTouchPointInView(x, y, child, null)) {
+                    if (!canViewReceivePointerEvents(child) || !isTransformedTouchPointInView(x, y, child, null)) {
                         continue;
                     }
 
@@ -1480,20 +1492,17 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
                     if (action == MotionEvent.ACTION_HOVER_ENTER) {
                         if (!wasHovered) {
                             // Send the enter as is.
-                            handled |= dispatchTransformedGenericPointerEvent(
-                                    event, child); // enter
+                            handled |= dispatchTransformedGenericPointerEvent(event, child); // enter
                         }
                     } else if (action == MotionEvent.ACTION_HOVER_MOVE) {
                         if (!wasHovered) {
                             // Synthesize an enter from a move.
                             eventNoHistory = obtainMotionEventNoHistoryOrSelf(eventNoHistory);
                             eventNoHistory.setAction(MotionEvent.ACTION_HOVER_ENTER);
-                            handled |= dispatchTransformedGenericPointerEvent(
-                                    eventNoHistory, child); // enter
+                            handled |= dispatchTransformedGenericPointerEvent(eventNoHistory, child); // enter
                             eventNoHistory.setAction(action);
 
-                            handled |= dispatchTransformedGenericPointerEvent(
-                                    eventNoHistory, child); // move
+                            handled |= dispatchTransformedGenericPointerEvent(eventNoHistory, child); // move
                         } else {
                             // Send the move as is.
                             handled |= dispatchTransformedGenericPointerEvent(event, child);
@@ -1524,8 +1533,7 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
                 }
                 eventNoHistory = obtainMotionEventNoHistoryOrSelf(eventNoHistory);
                 eventNoHistory.setAction(MotionEvent.ACTION_HOVER_EXIT);
-                dispatchTransformedGenericPointerEvent(
-                        eventNoHistory, child); // exit
+                dispatchTransformedGenericPointerEvent(eventNoHistory, child); // exit
                 eventNoHistory.setAction(action);
             }
 
@@ -1795,8 +1803,10 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         }
 
         boolean handled = false;
+        // 同样，ViewGroup也会对遮盖状态进行检查与过滤
         if (onFilterTouchEventForSecurity(ev)) {
             final int action = ev.getAction();
+            // 剔除触控点的索引号以获取实际的动作
             final int actionMasked = action & MotionEvent.ACTION_MASK;
 
             // Handle an initial down.
@@ -1804,14 +1814,15 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
                 // Throw away all previous state when starting a new touch gesture.
                 // The framework may have dropped the up or cancel event for the previous gesture
                 // due to an app switch, ANR, or some other state change.
+                // 1。ACTION_DOWN意味着一条崭新的事件序列开始。此时ViewGroup会重置所有与触摸事件派发相关的状态，包括清空TouchTarget列表，
+                // 这样以来ViewGroup便准备好进行一次崭新的触摸事件派发工作了
                 cancelAndClearTouchTargets(ev);
                 resetTouchState();
             }
 
             // Check for interception.
             final boolean intercepted;
-            if (actionMasked == MotionEvent.ACTION_DOWN
-                    || mFirstTouchTarget != null) {
+            if (actionMasked == MotionEvent.ACTION_DOWN || mFirstTouchTarget != null) {
                 final boolean disallowIntercept = (mGroupFlags & FLAG_DISALLOW_INTERCEPT) != 0;
                 if (!disallowIntercept) {
                     intercepted = onInterceptTouchEvent(ev);
@@ -1826,43 +1837,50 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
             }
 
             // Check for cancelation.
-            final boolean canceled = resetCancelNextUpFlag(this)
-                    || actionMasked == MotionEvent.ACTION_CANCEL;
+            // canceled表示ViewGroup所收到的这一事件序列是否被取消（由于被移除控件树或发生了Activity切换等）
+            final boolean canceled = resetCancelNextUpFlag(this) || actionMasked == MotionEvent.ACTION_CANCEL;
 
             // Update list of touch targets for pointer down, if needed.
+            // split表示此控件树是否启用前述的时间序列的拆分机制，开发者可以通过setMotionEventSplittingEnabled方法启用或禁用这一机制
             final boolean split = (mGroupFlags & FLAG_SPLIT_MOTION_EVENTS) != 0;
+            // 如果此次事件产生了新的派发目标（仅发生于ACTION_DOWN或ACTION_POINTER_DOWN），那么新的TouchTarget实例将保存在这里
             TouchTarget newTouchTarget = null;
+            // 由于确定派发目标使用了子控件的dispatchTouchEvent，因此当确定派发目标之后这一事件实际上已经完成派发了。这种情况下此变量将会被设置为true，以跳过后续的派发过程
             boolean alreadyDispatchedToNewTouchTarget = false;
+            // 倘若事件序列没有被取消，也没有被当前的ViewGroup所截取，才有进行派发目标查找的必要
             if (!canceled && !intercepted) {
+                // 如果事件的实际动作是ACTION_DOWN或者ACTION_POINTER_DOWN，标志着一个子序列的开始，此时需要进行派发目标的确定。
                 if (actionMasked == MotionEvent.ACTION_DOWN
                         || (split && actionMasked == MotionEvent.ACTION_POINTER_DOWN)
                         || actionMasked == MotionEvent.ACTION_HOVER_MOVE) {
+                    // 获取这一按下事件的触控点的索引号
                     final int actionIndex = ev.getActionIndex(); // always 0 for down
-                    final int idBitsToAssign = split ? 1 << ev.getPointerId(actionIndex)
-                            : TouchTarget.ALL_POINTER_IDS;
+                    // 2。通过索引号获取触控点的ID。
+                    final int idBitsToAssign = split ? 1 << ev.getPointerId(actionIndex) : TouchTarget.ALL_POINTER_IDS;
 
                     // Clean up earlier touch targets for this pointer id in case they
                     // have become out of sync.
                     removePointersFromTouchTargets(idBitsToAssign);
-
+                    // 接下来就要开始对子控件按照逆绘制顺序进行遍历，检查哪一个控件对这一新的事件子序列感兴趣
                     final int childrenCount = mChildrenCount;
                     if (childrenCount != 0) {
                         // Find a child that can receive the event.
                         // Scan children from front to back.
                         final View[] children = mChildren;
+
                         final float x = ev.getX(actionIndex);
                         final float y = ev.getY(actionIndex);
 
+                        // 由于触摸事件是基于位置进行派发目标的查找，因此必须获取事件的坐标。注意这里通过触控点的索引号获取坐标
                         final boolean customOrder = isChildrenDrawingOrderEnabled();
                         for (int i = childrenCount - 1; i >= 0; i--) {
-                            final int childIndex = customOrder ?
-                                    getChildDrawingOrder(childrenCount, i) : i;
+                            final int childIndex = customOrder ? getChildDrawingOrder(childrenCount, i) : i;
                             final View child = children[childIndex];
-                            if (!canViewReceivePointerEvents(child)
-                                    || !isTransformedTouchPointInView(x, y, child, null)) {
+                            // 3。首先检查事件坐标是否落在控件之内。如果没有位于空间内则继续查找下一个控件
+                            if (!canViewReceivePointerEvents(child) || !isTransformedTouchPointInView(x, y, child, null)) {
                                 continue;
                             }
-
+                            // 4。从mFirstTouchTarget列表中 查找控件所对应的TouchTarget
                             newTouchTarget = getTouchTarget(child);
                             if (newTouchTarget != null) {
                                 // Child is already receiving touch within its bounds.
@@ -1872,19 +1890,22 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
                             }
 
                             resetCancelNextUpFlag(child);
+                            // 5。使用dispatchTransformedTouchEvent方法尝试将事件派发给当前子控件
                             if (dispatchTransformedTouchEvent(ev, false, child, idBitsToAssign)) {
                                 // Child wants to receive touch within its bounds.
                                 mLastTouchDownTime = ev.getDownTime();
                                 mLastTouchDownIndex = childIndex;
                                 mLastTouchDownX = ev.getX();
                                 mLastTouchDownY = ev.getY();
+                                // 当子控件决定接受这一事件时，为其创建一个TouchTarget并保存在mFirstTouchTarget链表中，从此来自此触控点的事件都会派发给这个子控件
                                 newTouchTarget = addTouchTarget(child, idBitsToAssign);
+                                // 如前文所述，此事件已经在子控件中得到了处理。因此标记如下变量为true，后续的事件派发流程将不会再次发起此事件到这一子控件
                                 alreadyDispatchedToNewTouchTarget = true;
                                 break;
                             }
                         }
                     }
-
+                    // 6。在上述的遍历过程中没能找到一个合适的子控件以接受这一事件序列的情况下ViewGroup会将这一事件序列强行交给最近一次接受事件序列的子控件。
                     if (newTouchTarget == null && mFirstTouchTarget != null) {
                         // Did not find a child to receive the event.
                         // Assign the pointer to the least recently added target.
@@ -1892,6 +1913,7 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
                         while (newTouchTarget.next != null) {
                             newTouchTarget = newTouchTarget.next;
                         }
+                        // 将事件序列的触控电ID绑定到控件的TouchTarget中
                         newTouchTarget.pointerIdBits |= idBitsToAssign;
                     }
                 }
@@ -1900,24 +1922,27 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
             // Dispatch to touch targets.
             if (mFirstTouchTarget == null) {
                 // No touch targets so treat this as an ordinary view.
-                handled = dispatchTransformedTouchEvent(ev, canceled, null,
-                        TouchTarget.ALL_POINTER_IDS);
+                // 1。当mFirstTouchTarget为null时，表明之前未能找到任何一个合适的子控件接受事件序列，此时只能由ViewGroup自己处理输入事件了。
+                // 注意将事件派发给ViewGroup自己也使用了dispatchTransformedTouchEvent方法，不过会将child参数设置为null
+                handled = dispatchTransformedTouchEvent(ev, canceled, null, TouchTarget.ALL_POINTER_IDS);
             } else {
                 // Dispatch to touch targets, excluding the new touch target if we already
                 // dispatched to it.  Cancel touch targets if necessary.
+                // 遍历mFirstTouchTarget链表，为每一个TouchTarget派发事件
                 TouchTarget predecessor = null;
                 TouchTarget target = mFirstTouchTarget;
                 while (target != null) {
                     final TouchTarget next = target.next;
                     if (alreadyDispatchedToNewTouchTarget && target == newTouchTarget) {
+                        // 2。倘若TouchTarget是新确定的TouchTarget，那么在确定的过程中目标控件已经完成了事件处理，因此不需要再派发
                         handled = true;
                     } else {
-                        final boolean cancelChild = resetCancelNextUpFlag(target.child)
-                                || intercepted;
-                        if (dispatchTransformedTouchEvent(ev, cancelChild,
-                                target.child, target.pointerIdBits)) {
+                        final boolean cancelChild = resetCancelNextUpFlag(target.child) || intercepted;
+                        // 3。使用dispatchTransformedTouchEvent方法派发事件给目标控件
+                        if (dispatchTransformedTouchEvent(ev, cancelChild, target.child, target.pointerIdBits)) {
                             handled = true;
                         }
+                        // 倘若决定中止目标控件继续接受事件序列，增将其对应的TouchTarget从链表中删除，并回收。下次事件到来时将不会为进行事件派发
                         if (cancelChild) {
                             if (predecessor == null) {
                                 mFirstTouchTarget = next;
@@ -1935,11 +1960,12 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
             }
 
             // Update list of touch targets for pointer up or cancel, if needed.
-            if (canceled
-                    || actionMasked == MotionEvent.ACTION_UP
-                    || actionMasked == MotionEvent.ACTION_HOVER_MOVE) {
+            if (canceled || actionMasked == MotionEvent.ACTION_UP || actionMasked == MotionEvent.ACTION_HOVER_MOVE) {
+                // 当ViewGroup收到一个ACTION_CANCEL事件或ACTION_UP事件时，真个事件序列已经结束，因此删除所有TouchTarget
                 resetTouchState();
             } else if (split && actionMasked == MotionEvent.ACTION_POINTER_UP) {
+                // 当事件是一个ACTION_POINTER_UP时，将其对应的触控点ID从读音个TouchTarget中移。
+                // removePointersFromTouchTargets会在TouchTarget的最后一个触控点ID被移除的同时，将这个TouchTArget从mFirstTouchTarget链表中删除并销毁
                 final int actionIndex = ev.getActionIndex();
                 final int idBitsToRemove = 1 << ev.getPointerId(actionIndex);
                 removePointersFromTouchTargets(idBitsToRemove);
@@ -2128,28 +2154,35 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
      * Transforms a motion event into the coordinate space of a particular child view,
      * filters out irrelevant pointer ids, and overrides its action if necessary.
      * If child is null, assumes the MotionEvent will be sent to this ViewGroup instead.
+     * 三个步骤：
+     * 1。生成tranformedEvent，根据目标所感兴趣的触控点列表，tranformedEvent有可能是原始事件的一个副本，或者仅包含部分触控点信息的一个子集
+     * 2。对tranformedEvent进行坐标系变换，使之位于目标控件的坐标系之中
+     * 3。通过dispatchToucheEvent将tranformedEvent发送给目标控件
      */
-    private boolean dispatchTransformedTouchEvent(MotionEvent event, boolean cancel,
-                                                  View child, int desiredPointerIdBits) {
+    private boolean dispatchTransformedTouchEvent(MotionEvent event, boolean cancel, View child, int desiredPointerIdBits) {
         final boolean handled;
 
         // Canceling motions is a special case.  We don't need to perform any transformations
         // or filtering.  The important part is the action, not the contents.
+        // 1。首先处理当需要中止此子控件对事件序列进行处理的情况。
         final int oldAction = event.getAction();
         if (cancel || oldAction == MotionEvent.ACTION_CANCEL) {
             event.setAction(MotionEvent.ACTION_CANCEL);
             if (child == null) {
+                // 当child参数为null时表示事件需要派发给ViewGroup自己
                 handled = super.dispatchTouchEvent(event);
             } else {
                 handled = child.dispatchTouchEvent(event);
             }
             event.setAction(oldAction);
+            // 事件派发完成
             return handled;
         }
 
         // Calculate the number of pointers to deliver.
-        final int oldPointerIdBits = event.getPointerIdBits();
-        final int newPointerIdBits = oldPointerIdBits & desiredPointerIdBits;
+        // 这两个局部变量是确定是否需要进行事件序列分割的依据
+        final int oldPointerIdBits = event.getPointerIdBits(); // 表示了原始事件中所有触控点的列表
+        final int newPointerIdBits = oldPointerIdBits & desiredPointerIdBits; // 表明了目标希望接受的触控点的列表，是oldPointerIdBits的一个子集
 
         // If for some reason we ended up in an inconsistent state where it looks like we
         // might produce a motion event with no pointers in it, then drop the event.
@@ -2161,7 +2194,9 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         // irreversible transformations, then we can reuse the motion event for this
         // dispatch as long as we are careful to revert any changes we make.
         // Otherwise we need to make a copy.
+        // transformedEvent是一个来自原始MotionEvent的新的MotionEvent，它只包含了目标所感兴趣的触控点，派发给目标事件对象是它而不是原始事件
         final MotionEvent transformedEvent;
+        // 2。生成transformedEvent。
         if (newPointerIdBits == oldPointerIdBits) {
             if (child == null || child.hasIdentityMatrix()) {
                 if (child == null) {
@@ -2177,26 +2212,32 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
                 }
                 return handled;
             }
-            transformedEvent = MotionEvent.obtain(event);
+            transformedEvent = MotionEvent.obtain(event); // 复制原始事件
         } else {
-            transformedEvent = event.split(newPointerIdBits);
+            transformedEvent = event.split(newPointerIdBits); // 分离原始事件中的一个子集
         }
 
         // Perform any necessary transformations and dispatch.
+        // 3。对transformedEvent进行坐标系转换，并发送给目标
         if (child == null) {
+            // 与之前一样，当child参数为null时表示将事件发送给ViewGroup自己
             handled = super.dispatchTouchEvent(transformedEvent);
         } else {
+            // 对transformedEvent进行坐标系变换，使之位于派发的坐标系之中
+            // 首先计算ViewGroup的滚动量以及目标控件的位置
             final float offsetX = mScrollX - child.mLeft;
             final float offsetY = mScrollY - child.mTop;
             transformedEvent.offsetLocation(offsetX, offsetY);
+            // 让后当目标控件中存在使用setScaleX等方法设置的矩阵变换时，将对事件坐标进行变换。此次变换完成之后，事件坐标点便位于目标控件的坐标系了
             if (! child.hasIdentityMatrix()) {
                 transformedEvent.transform(child.getInverseMatrix());
             }
-
+            // 通过dispatchTouchEvent发送给目标控件
             handled = child.dispatchTouchEvent(transformedEvent);
         }
 
         // Done.
+        // 销毁transformedEvent
         transformedEvent.recycle();
         return handled;
     }
@@ -2314,19 +2355,24 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
     @Override
     public boolean requestFocus(int direction, Rect previouslyFocusedRect) {
         if (DBG) {
-            System.out.println(this + " ViewGroup.requestFocus direction="
-                    + direction);
+            System.out.println(this + " ViewGroup.requestFocus direction=" + direction);
         }
+        // 1。首先获取ViewGroup的DescendantFocusability特性的取值
         int descendantFocusability = getDescendantFocusability();
-
+        // 根据不同的DescendantFocusability特性，requestFocuse会产生不同的效果
         switch (descendantFocusability) {
             case FOCUS_BLOCK_DESCENDANTS:
+                // 2。FOCUS_BLOCK_DESCENDANTS：ViewGroup将会阻止所有子控件获取焦点，于是调用View.requestFocus尝试自己获取焦点
                 return super.requestFocus(direction, previouslyFocusedRect);
             case FOCUS_BEFORE_DESCENDANTS: {
+                // 3。FOCUS_BEFORE_DESCENDANTS：ViewGroup将有优先于子控件获取焦点的权利。因此会首先调用View.requestFocuse尝试自己先获取焦点，
+                // 倘若自己不满足获取焦点的条件则通过调用onReqeustFocusInDescendants方法将获取焦点的请求转发给子控件
                 final boolean took = super.requestFocus(direction, previouslyFocusedRect);
                 return took ? took : onRequestFocusInDescendants(direction, previouslyFocusedRect);
             }
             case FOCUS_AFTER_DESCENDANTS: {
+                // 4。FOCUS_AFTER_DESCENDANTS子控件将有优先于此ViewGroup获取焦点的权利。因此会首先调用onRequestFocusInDescendants
+                // 尝试将获取焦点的请求转发给子控件。倘若所有子控件都无法获取焦点，再调用View.requestFocus尝试自己获取焦点
                 final boolean took = onRequestFocusInDescendants(direction, previouslyFocusedRect);
                 return took ? took : super.requestFocus(direction, previouslyFocusedRect);
             }
@@ -2349,8 +2395,9 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
      * @return Whether focus was taken.
      */
     @SuppressWarnings({"ConstantConditions"})
-    protected boolean onRequestFocusInDescendants(int direction,
-                                                  Rect previouslyFocusedRect) {
+    protected boolean onRequestFocusInDescendants(int direction, Rect previouslyFocusedRect) {
+        // 此方法的目的是按照direction参数所描述的方向在子控件列表中依次尝试使其获取焦点这里direction所描述的方向并不是控件在屏幕上的位置，
+        // 而是它们在mChildren列表中的位置因此direction仅有按照索引递增（FOCUS_FORWARD）或递减两种方向可选
         int index;
         int increment;
         int end;
@@ -2367,7 +2414,9 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         final View[] children = mChildren;
         for (int i = index; i != end; i += increment) {
             View child = children[i];
+            // 首先子控件必须是可见的
             if ((child.mViewFlags & VISIBILITY_MASK) == VISIBLE) {
+                // 调用子控件的requestFocus，如果子控件获取了焦点，则停止继续查找
                 if (child.requestFocus(direction, previouslyFocusedRect)) {
                     return true;
                 }

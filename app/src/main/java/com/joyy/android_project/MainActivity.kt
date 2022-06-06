@@ -18,6 +18,10 @@ class MainActivity : AppCompatActivity() {
         super.onPostResume()
     }
 
+    fun test() {
+        val hashSet = HashSet<String>()
+    }
+
     /**
      * This is the fragment-orientated version of {@link #onResume()} that you
      * can override to perform operations in the Activity at the same point

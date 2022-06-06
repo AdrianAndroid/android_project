@@ -1878,6 +1878,7 @@ public class Activity extends ContextThemeWrapper
      * @see #setContentView(android.view.View, android.view.ViewGroup.LayoutParams)
      */
     public void setContentView(int layoutResID) {
+        // 直接请求转发给Window
         getWindow().setContentView(layoutResID);
         initActionBar();
     }
@@ -2407,9 +2408,12 @@ public class Activity extends ContextThemeWrapper
         if (ev.getAction() == MotionEvent.ACTION_DOWN) {
             onUserInteraction();
         }
+        // 首先调用Window的superDispatchTouchEvent
         if (getWindow().superDispatchTouchEvent(ev)) {
+            // 如果superDispatchTouchEvent消费了事件，则直接返回
             return true;
         }
+        // 倘若superDispatchTouchEvent没有消费事件，则由Activity.onTouchEvent处理事件
         return onTouchEvent(ev);
     }
 
@@ -3241,6 +3245,7 @@ public class Activity extends ContextThemeWrapper
      * @see android.view.Window#requestFeature
      */
     public final boolean requestWindowFeature(int featureId) {
+        // 直接将请求转发给Window
         return getWindow().requestFeature(featureId);
     }
 
@@ -5059,8 +5064,9 @@ public class Activity extends ContextThemeWrapper
         attachBaseContext(context);
 
         mFragments.attachActivity(this, mContainer, null);
-
+        // 首先Activity通过PolicyManager创建一个新的PhoneWindow对象，并保存在mWinodw中
         mWindow = PolicyManager.makeNewWindow(this);
+        // 然后将Activity作为Window.Callback实例设置给PhoneWindow
         mWindow.setCallback(this);
         mWindow.getLayoutInflater().setPrivateFactory(this);
         if (info.softInputMode != WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED) {
@@ -5073,6 +5079,7 @@ public class Activity extends ContextThemeWrapper
 
         mMainThread = aThread;
         mInstrumentation = instr;
+        // token是IApplicationToken，即添加一个Activity窗口所需的令牌
         mToken = token;
         mIdent = ident;
         mApplication = application;
@@ -5083,7 +5090,7 @@ public class Activity extends ContextThemeWrapper
         mParent = parent;
         mEmbeddedID = id;
         mLastNonConfigurationInstances = lastNonConfigurationInstances;
-
+        // 讲一个WindowManager实例保存到PhoneWindow中，窗口令牌也一并做了保存
         mWindow.setWindowManager(
                 (WindowManager)context.getSystemService(Context.WINDOW_SERVICE),
                 mToken, mComponent.flattenToString(),
@@ -5091,6 +5098,7 @@ public class Activity extends ContextThemeWrapper
         if (mParent != null) {
             mWindow.setContainer(mParent.getWindow());
         }
+        // 最后从PhoneWindow中取出WindowManager并保存到Activity中
         mWindowManager = mWindow.getWindowManager();
         mCurrentConfig = config;
     }

@@ -857,7 +857,9 @@ public abstract class Window {
      * @return The features that are now set.
      */
     public boolean requestFeature(int featureId) {
+        // 与处理触控电ID的方式类似，Window以bit的方式存储feature列表
         final int flag = 1<<featureId;
+        // 将feature添加到mFeatures成员之中
         mFeatures |= flag;
         mLocalFeatures |= mContainer != null ? (flag&~mContainer.mFeatures) : flag;
         return (mFeatures&flag) != 0;

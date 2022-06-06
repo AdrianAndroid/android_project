@@ -80,17 +80,21 @@ public class FocusFinder {
 
     private View findNextFocus(ViewGroup root, View focused, Rect focusedRect, int direction) {
         View next = null;
+        // 1。首先将尝试依照开发者的设置选择下一个拥有焦点的控件
         if (focused != null) {
             next = findNextUserSpecifiedFocus(root, focused, direction);
         }
         if (next != null) {
             return next;
         }
+        // 2。内置算法。倘若开发者没有为当前焦点控件设置下一个拥有焦点的控件，将会使用控件系统内置的算法进行下一个焦点的查找
         ArrayList<View> focusables = mTempList;
         try {
             focusables.clear();
+            // 3。将控件树中所有可以获取焦点的控件存储到focusables列表中。后续的将会在这个列表中进行查找
             root.addFocusables(focusables, direction);
             if (!focusables.isEmpty()) {
+                // 4。调用findNextFocus的另一个重载完成查找
                 next = findNextFocus(root, focused, focusedRect, direction, focusables);
             }
         } finally {
@@ -110,17 +114,23 @@ public class FocusFinder {
         return null;
     }
 
-    private View findNextFocus(ViewGroup root, View focused, Rect focusedRect,
-                               int direction, ArrayList<View> focusables) {
+    private View findNextFocus(ViewGroup root, View focused, Rect focusedRect, int direction, ArrayList<View> focusables) {
+        // 1。首先需要确定查找的起始位置
         if (focused != null) {
             if (focusedRect == null) {
                 focusedRect = mFocusedRect;
             }
             // fill in interesting rect from focused
+            // 当focused不为null时，起始位置即focused所在的位置。View.getfocusedRect所返回的并不是控件的mLeft,mTop,mRight,mBottom。
+            // 因为Scroll的存在它们并不能反应控件的真实位置。View.getFocusedRect会将Scroll所产生的偏移考虑在哪，但是Tranformation（如
+            // setScaledX等设置）并没有计算在内，因此它们并不会影响焦点查找的结果
             focused.getFocusedRect(focusedRect);
+            // View.getFocusedRect所返回的结果基于View本身的坐标系。为了使得控件之间的位置可以比较，必须将其转换到根控件所在的多坐标系中
             root.offsetDescendantRectToMyCoords(focused, focusedRect);
         } else {
             if (focusedRect == null) {
+                // 当focusedRect为null时，表示查找在指定方向上的第一个可以获取焦点的控件。此时会以根控件的某个角所在位置作为起始位置。
+                // 例如Left和Up两个方向来说，起始位置会被设置根控件的右下角这个点，而对Right和Bottom来说，起始位置是根控件的左上角
                 focusedRect = mFocusedRect;
                 // make up a rect at top left or bottom right of root
                 switch (direction) {
@@ -150,18 +160,18 @@ public class FocusFinder {
                 }
             }
         }
-
+        // 接下来便会根据不同的方向选择不同的查找算法
         switch (direction) {
             case View.FOCUS_FORWARD:
             case View.FOCUS_BACKWARD:
-                return findNextFocusInRelativeDirection(focusables, root, focused, focusedRect,
-                        direction);
+                // 2。对FOCUS_FORWARD/BACKWARD来说将会选择相对位置进行查找。这种查找与控件位置无关，它会选择focusables列表中索引近邻focused的控件作为查找结果
+                return findNextFocusInRelativeDirection(focusables, root, focused, focusedRect, direction);
             case View.FOCUS_UP:
             case View.FOCUS_DOWN:
             case View.FOCUS_LEFT:
             case View.FOCUS_RIGHT:
-                return findNextFocusInAbsoluteDirection(focusables, root, focused,
-                        focusedRect, direction);
+                // 3。对于UP/DOWN/LEFT/RIGHT4个方向会根据控件的实际位置进行查找
+                return findNextFocusInAbsoluteDirection(focusables, root, focused, focusedRect, direction);
             default:
                 throw new IllegalArgumentException("Unknown direction: " + direction);
         }
@@ -203,6 +213,7 @@ public class FocusFinder {
                                           Rect focusedRect, int direction) {
         // initialize the best candidate to something impossible
         // (so the first plausible view will become the best choice)
+        // 1。首先去定第一个最佳候选词控件的位置。focusedRect即查找的起始位置
         mBestCandidateRect.set(focusedRect);
         switch(direction) {
             case View.FOCUS_LEFT:
@@ -217,25 +228,29 @@ public class FocusFinder {
             case View.FOCUS_DOWN:
                 mBestCandidateRect.offset(0, -(focusedRect.height() + 1));
         }
-
+        // closet表示在指定方向上距离起始位置最接近的一个控件
         View closest = null;
 
         int numFocusables = focusables.size();
+        // 遍历numFocusables列表进行查找
         for (int i = 0; i < numFocusables; i++) {
             View focusable = focusables.get(i);
-
+            // 既然是查找下一个焦点控件，那么已经拥有焦点的控件自然不能算作候选者。另外根控件也不能作为候选对象
             // only interested in other non-root views
             if (focusable == focused || focusable == root) continue;
 
             // get focus bounds of other view in same coordinate system
+            // 2。与获取起始位置一样，获取候选控件的位置。将其位置转换到根控件的坐标系中，以便能够与起始位置进行比较
             focusable.getFocusedRect(mOtherRect);
             root.offsetDescendantRectToMyCoords(focusable, mOtherRect);
-
+            // 3。通过isBetterCandidate方法比较现有的mBestCandidateRect与候选控件的位置。倘若候选控件的位置更佳，则设置候选控件为closet，
+            // 设置候选控件的位置为mBestCandidateRect。如此往复，当所有候选控件都经过比较之后，closet便是最后的查找结果
             if (isBetterCandidate(direction, focusedRect, mOtherRect, mBestCandidateRect)) {
                 mBestCandidateRect.set(mOtherRect);
                 closest = focusable;
             }
         }
+        // 返回closest作为下一个焦点控件
         return closest;
     }
 

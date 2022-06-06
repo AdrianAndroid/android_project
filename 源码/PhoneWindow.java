@@ -225,9 +225,13 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
 
     @Override
     public boolean requestFeature(int featureId) {
+        // 倘若mContentParent不为null时调用了requestFeature方法则会抛出一个运行时异常mContentParent是一个ViewGroup，
+        // 是用户通过setContentView设置的控件树直接父控件。当它不为null时表示外观模版已经建立，那么此时再进行requestFeature操作为时已晚
         if (mContentParent != null) {
             throw new AndroidRuntimeException("requestFeature() must be called before adding content");
         }
+        // 接下来是对feature进行相容性检查。因为PhoneWindow允许使用者设置多个feature，而不同的feature之间可能存在互斥性，例如，当要求窗口外观不存在标题栏时
+        // 就不再允许窗口带有动作条，因为动作条是标题栏的一部分
         final int features = getFeatures();
         if ((features != DEFAULT_FEATURES) && (featureId == FEATURE_CUSTOM_TITLE)) {
 
@@ -247,6 +251,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
             // Remove the action bar feature if we have no title. No title dominates.
             removeFeature(FEATURE_ACTION_BAR);
         }
+        // 最后调用Window类的requestFeature实现完成feature的最终设置
         return super.requestFeature(featureId);
     }
 
@@ -262,12 +267,19 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
 
     @Override
     public void setContentView(int layoutResID) {
+        // 1.首先是为窗口准备外观模版
         if (mContentParent == null) {
+            // 当mContentParent为null时，表明外观模版尚未创建，此时会通过installDecor方法创建一个外观模版。创建完成后mContentParent
+            // 便会被设置模版中的一个ViewGroup并且随后它会作为使用者提供的控件树的父控件
             installDecor();
         } else {
+            // 倘若外观模板已经创建，则清空mContentParent的子控件，使其准备好作为新的控件树的父控件
             mContentParent.removeAllViews();
         }
+        // 2。将使用者给定的layout实例化为一棵控件树，然后作为子控件保存在mContentParent之中。完成这个操作之后，PhoneWindow便完成了整棵控件树的创建
         mLayoutInflater.inflate(layoutResID, mContentParent);
+        // 3。Callback接口被Window用来向使用者通知其内部所发生的变化。此时通知使用者Window的控件树发生了改变。
+        // 作为Window的使用者，Activity类实现了这一接口，因此开发者可以通过重写Activity的这一方法从而对这些变化作出反应
         final Callback cb = getCallback();
         if (cb != null && !isDestroyed()) {
             cb.onContentChanged();
@@ -1897,7 +1909,9 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
 
         @Override
         public boolean dispatchTouchEvent(MotionEvent ev) {
+            // Callback即Window.Callback的实例
             final Callback cb = getCallback();
+            // 当Callback不为null，并且mFeatureId小于0时（这表示DecorView是一个顶级窗口的控件树的根控件），DecorView直接将触摸事件发送给Callback
             return cb != null && !isDestroyed() && mFeatureId < 0 ? cb.dispatchTouchEvent(ev)
                     : super.dispatchTouchEvent(ev);
         }
@@ -1950,6 +1964,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
         }
 
         public boolean superDispatchTouchEvent(MotionEvent event) {
+            // 事件传入了DecorView
             return super.dispatchTouchEvent(event);
         }
 
@@ -2602,30 +2617,35 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
 
     protected ViewGroup generateLayout(DecorView decor) {
         // Apply data from current theme.
-
+        // 1。首先解析窗口的样式表。所谓样式表其实是定义子啊资源系统中的一个xml文件，制定了窗口的各式各样的属性。比如窗口是浮动（对话框）还是全屏（Activity），
+        // 最小尺寸，是否具有标题栏，是否显示壁纸等。这些属性设置一部分影响了前文所提到的窗口特性（如标题栏），一部分影响了窗口的LayoutParams中的属性（比如是否浮动，是否显示壁纸等），
+        // 还有一部分影响了控件树的共哟方式（如最小尺寸，它会影响根控件DecorView的测量）。
+        // 获取窗口的样式表并存储在变量a中
         TypedArray a = getWindowStyle();
 
         if (false) {
             System.out.println("From style:");
             String s = "Attrs:";
             for (int i = 0; i < com.android.internal.R.styleable.Window.length; i++) {
-                s = s + " " + Integer.toHexString(com.android.internal.R.styleable.Window[i]) + "="
-                        + a.getString(i);
+                s = s + " " + Integer.toHexString(com.android.internal.R.styleable.Window[i]) + "=" + a.getString(i);
             }
             System.out.println(s);
         }
-
+        // 首先以检查样式表是否定义窗口为浮动窗口（非全屏）为例，这个样式影响了LayoutParams中的属性
         mIsFloating = a.getBoolean(com.android.internal.R.styleable.Window_windowIsFloating, false);
-        int flagsToUpdate = (FLAG_LAYOUT_IN_SCREEN|FLAG_LAYOUT_INSET_DECOR)
-                & (~getForcedWindowFlags());
+        int flagsToUpdate = (FLAG_LAYOUT_IN_SCREEN|FLAG_LAYOUT_INSET_DECOR) & (~getForcedWindowFlags());
         if (mIsFloating) {
+            // 对于浮动窗口来说，其Layoutparams.width/height必须是WRAP_CONTENT
             setLayout(WRAP_CONTENT, WRAP_CONTENT);
+            // 并且LayoutParams.flags中的IN_SCREEN和INSET_DECOR标记必须被移除。因为浮动窗口子啊布局时不能被状态栏导航栏等遮挡
             setFlags(0, flagsToUpdate);
         } else {
+            // 对非浮动窗口来说，其LayoutParams.width/height将保持默认的MATCH_PARENT并且需要增加IN_SCREEN和INSET_DECOR两个标记
             setFlags(FLAG_LAYOUT_IN_SCREEN|FLAG_LAYOUT_INSET_DECOR, flagsToUpdate);
         }
-
+        // 然后检查样式表中是否定义了无标题栏后拥有动作栏两个样式。这两个样式影响了窗口的特性
         if (a.getBoolean(com.android.internal.R.styleable.Window_windowNoTitle, false)) {
+            // 因为这些样式影响了窗口的特性，因此PhoneWindow会自行根据样式修改窗口的特性。这些特性会影响随后外观模板的创建
             requestFeature(FEATURE_NO_TITLE);
         } else if (a.getBoolean(com.android.internal.R.styleable.Window_windowActionBar, false)) {
             // Don't allow an action bar if there is no title.
@@ -2649,53 +2669,50 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
         }
 
         if (a.getBoolean(com.android.internal.R.styleable.Window_windowEnableSplitTouch,
-                getContext().getApplicationInfo().targetSdkVersion
-                        >= android.os.Build.VERSION_CODES.HONEYCOMB)) {
+                getContext().getApplicationInfo().targetSdkVersion >= android.os.Build.VERSION_CODES.HONEYCOMB)) {
             setFlags(FLAG_SPLIT_TOUCH, FLAG_SPLIT_TOUCH&(~getForcedWindowFlags()));
         }
 
+        // 检查样式中是否定义了最小宽度。这种样式影响了DecorView测量时的计算。因此其效果并不会体现在这里。将样式中的值保存在mMinWidthMajor/Minor成员中，
+        // 并在需要的时候使用。其中Major的含义是在横屏情况下的最小宽度，而Minor则是在竖屏情况下的最小宽度
+        // 在介绍DecorView时将会体现这些成员的用处。
         a.getValue(com.android.internal.R.styleable.Window_windowMinWidthMajor, mMinWidthMajor);
         a.getValue(com.android.internal.R.styleable.Window_windowMinWidthMinor, mMinWidthMinor);
         if (a.hasValue(com.android.internal.R.styleable.Window_windowFixedWidthMajor)) {
             if (mFixedWidthMajor == null) mFixedWidthMajor = new TypedValue();
-            a.getValue(com.android.internal.R.styleable.Window_windowFixedWidthMajor,
-                    mFixedWidthMajor);
+            a.getValue(com.android.internal.R.styleable.Window_windowFixedWidthMajor, mFixedWidthMajor);
         }
         if (a.hasValue(com.android.internal.R.styleable.Window_windowFixedWidthMinor)) {
             if (mFixedWidthMinor == null) mFixedWidthMinor = new TypedValue();
-            a.getValue(com.android.internal.R.styleable.Window_windowFixedWidthMinor,
-                    mFixedWidthMinor);
+            a.getValue(com.android.internal.R.styleable.Window_windowFixedWidthMinor, mFixedWidthMinor);
         }
         if (a.hasValue(com.android.internal.R.styleable.Window_windowFixedHeightMajor)) {
             if (mFixedHeightMajor == null) mFixedHeightMajor = new TypedValue();
-            a.getValue(com.android.internal.R.styleable.Window_windowFixedHeightMajor,
-                    mFixedHeightMajor);
+            a.getValue(com.android.internal.R.styleable.Window_windowFixedHeightMajor, mFixedHeightMajor);
         }
         if (a.hasValue(com.android.internal.R.styleable.Window_windowFixedHeightMinor)) {
             if (mFixedHeightMinor == null) mFixedHeightMinor = new TypedValue();
-            a.getValue(com.android.internal.R.styleable.Window_windowFixedHeightMinor,
-                    mFixedHeightMinor);
+            a.getValue(com.android.internal.R.styleable.Window_windowFixedHeightMinor, mFixedHeightMinor);
         }
-
+        // 2。接下来是影响外观模板的另外一种因素，即Android版本
         final Context context = getContext();
         final int targetSdk = context.getApplicationInfo().targetSdkVersion;
         final boolean targetPreHoneycomb = targetSdk < android.os.Build.VERSION_CODES.HONEYCOMB;
         final boolean targetPreIcs = targetSdk < android.os.Build.VERSION_CODES.ICE_CREAM_SANDWICH;
-        final boolean targetHcNeedsOptions = context.getResources().getBoolean(
-                com.android.internal.R.bool.target_honeycomb_needs_options_menu);
+        final boolean targetHcNeedsOptions = context.getResources().getBoolean(com.android.internal.R.bool.target_honeycomb_needs_options_menu);
         final boolean noActionBar = !hasFeature(FEATURE_ACTION_BAR) || hasFeature(FEATURE_NO_TITLE);
 
         if (targetPreHoneycomb || (targetPreIcs && targetHcNeedsOptions && noActionBar)) {
+            // 在Honeycomb之前的版本中，选项菜单的呼出动作由菜单键完成，因此在需要选项菜单时需要导航栏提供虚拟的菜单键完成，因此在需要选项菜单时需要导航栏提供虚拟的菜单键。
+            // 将NEEDS_MENU_KEY标记放入LayoutParams中，当此窗口处于焦点状态时，WMS会向SystemUI请求显示虚拟菜单键（第七章）
             addFlags(WindowManager.LayoutParams.FLAG_NEEDS_MENU_KEY);
         } else {
+            // 而在HoneyComb之后的版本中，选项菜单由动作栏中的菜单按钮完成，因此需要将标记移除
             clearFlags(WindowManager.LayoutParams.FLAG_NEEDS_MENU_KEY);
         }
 
-        if (mAlwaysReadCloseOnTouchAttr || getContext().getApplicationInfo().targetSdkVersion
-                >= android.os.Build.VERSION_CODES.HONEYCOMB) {
-            if (a.getBoolean(
-                    com.android.internal.R.styleable.Window_windowCloseOnTouchOutside,
-                    false)) {
+        if (mAlwaysReadCloseOnTouchAttr || getContext().getApplicationInfo().targetSdkVersion >= android.os.Build.VERSION_CODES.HONEYCOMB) {
+            if (a.getBoolean(com.android.internal.R.styleable.Window_windowCloseOnTouchOutside, false)) {
                 setCloseOnTouchOutsideIfNotSet(true);
             }
         }
@@ -2703,9 +2720,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
         WindowManager.LayoutParams params = getAttributes();
 
         if (!hasSoftInputMode()) {
-            params.softInputMode = a.getInt(
-                    com.android.internal.R.styleable.Window_windowSoftInputMode,
-                    params.softInputMode);
+            params.softInputMode = a.getInt(com.android.internal.R.styleable.Window_windowSoftInputMode, params.softInputMode);
         }
 
         if (a.getBoolean(com.android.internal.R.styleable.Window_backgroundDimEnabled,
@@ -2715,14 +2730,12 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
                 params.flags |= WindowManager.LayoutParams.FLAG_DIM_BEHIND;
             }
             if (!haveDimAmount()) {
-                params.dimAmount = a.getFloat(
-                        android.R.styleable.Window_backgroundDimAmount, 0.5f);
+                params.dimAmount = a.getFloat(android.R.styleable.Window_backgroundDimAmount, 0.5f);
             }
         }
 
         if (params.windowAnimations == 0) {
-            params.windowAnimations = a.getResourceId(
-                    com.android.internal.R.styleable.Window_windowAnimationStyle, 0);
+            params.windowAnimations = a.getResourceId(com.android.internal.R.styleable.Window_windowAnimationStyle, 0);
         }
 
         // The rest are only done if this window is not embedded; otherwise,
@@ -2730,33 +2743,32 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
         if (getContainer() == null) {
             if (mBackgroundDrawable == null) {
                 if (mBackgroundResource == 0) {
-                    mBackgroundResource = a.getResourceId(
-                            com.android.internal.R.styleable.Window_windowBackground, 0);
+                    mBackgroundResource = a.getResourceId(com.android.internal.R.styleable.Window_windowBackground, 0);
                 }
                 if (mFrameResource == 0) {
                     mFrameResource = a.getResourceId(com.android.internal.R.styleable.Window_windowFrame, 0);
                 }
                 if (false) {
-                    System.out.println("Background: "
-                            + Integer.toHexString(mBackgroundResource) + " Frame: "
-                            + Integer.toHexString(mFrameResource));
+                    System.out.println("Background: " + Integer.toHexString(mBackgroundResource) + " Frame: " + Integer.toHexString(mFrameResource));
                 }
             }
             mTextColor = a.getColor(com.android.internal.R.styleable.Window_textColor, 0xFF000000);
         }
 
         // Inflate the window decor.
-
+        // 1。首先选择合适的外观模板。所有的窗口外观模板已经实现被定义在系统资源之中。generateLayout的工作就是根据窗口特性选择一个合适的外观模板的资源id。
+        // layoutResource变量保存了选择的结果。
         int layoutResource;
         int features = getLocalFeatures();
         // System.out.println("Features: 0x" + Integer.toHexString(features));
         if ((features & ((1 << FEATURE_LEFT_ICON) | (1 << FEATURE_RIGHT_ICON))) != 0) {
             if (mIsFloating) {
+                // 对于浮动窗口来说，其窗口外观被保存在dialogTitleIconsDecorLayout样式中
                 TypedValue res = new TypedValue();
-                getContext().getTheme().resolveAttribute(
-                        com.android.internal.R.attr.dialogTitleIconsDecorLayout, res, true);
+                getContext().getTheme().resolveAttribute(com.android.internal.R.attr.dialogTitleIconsDecorLayout, res, true);
                 layoutResource = res.resourceId;
             } else {
+                // 对全屏窗口来说，选择screen_title_icons布局所定义的控件树
                 layoutResource = com.android.internal.R.layout.screen_title_icons;
             }
             // XXX Remove this once action bar supports these features.
@@ -2766,15 +2778,15 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
                 && (features & (1 << FEATURE_ACTION_BAR)) == 0) {
             // Special case for a window with only a progress bar (and title).
             // XXX Need to have a no-title version of embedded windows.
+            // 如果窗口特性特性期望有一个进度条，则选择screen_progress布局所定义的控件树
             layoutResource = com.android.internal.R.layout.screen_progress;
             // System.out.println("Progress!");
-        } else if ((features & (1 << FEATURE_CUSTOM_TITLE)) != 0) {
+        } else if ((features & (1 << FEATURE_CUSTOM_TITLE)) != 0) { // 针对其他窗口特性进行选择
             // Special case for a window with a custom title.
             // If the window is floating, we need a dialog layout
             if (mIsFloating) {
                 TypedValue res = new TypedValue();
-                getContext().getTheme().resolveAttribute(
-                        com.android.internal.R.attr.dialogCustomTitleDecorLayout, res, true);
+                getContext().getTheme().resolveAttribute(com.android.internal.R.attr.dialogCustomTitleDecorLayout, res, true);
                 layoutResource = res.resourceId;
             } else {
                 layoutResource = com.android.internal.R.layout.screen_custom_title;
@@ -2786,8 +2798,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
             // If the window is floating, we need a dialog layout
             if (mIsFloating) {
                 TypedValue res = new TypedValue();
-                getContext().getTheme().resolveAttribute(
-                        com.android.internal.R.attr.dialogTitleDecorLayout, res, true);
+                getContext().getTheme().resolveAttribute(com.android.internal.R.attr.dialogTitleDecorLayout, res, true);
                 layoutResource = res.resourceId;
             } else if ((features & (1 << FEATURE_ACTION_BAR)) != 0) {
                 if ((features & (1 << FEATURE_ACTION_BAR_OVERLAY)) != 0) {
@@ -2808,10 +2819,12 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
         }
 
         mDecor.startChanging();
-
+        // 2。将所选择的布局资源实例化为一棵控件树并保存在in变量之中。这便是最终的外观模板
         View in = mLayoutInflater.inflate(layoutResource, null);
+        // 将外观模板作为子控件添加到DecorView中
         decor.addView(in, new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT));
-
+        // 3。从外观模板控件树中获取作为使用者提供的控件树的父控件的contentParent。contentParent的id是ID_ANDROID_CONTENT。
+        // 无论哪种模板，必须存在一个拥有此ID的ViewGroup。否则generateLayout将会抛出异常
         ViewGroup contentParent = (ViewGroup)findViewById(ID_ANDROID_CONTENT);
         if (contentParent == null) {
             throw new RuntimeException("Window couldn't find content container view");
@@ -2863,20 +2876,29 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
     }
 
     private void installDecor() {
+        // 1。首先创建控件树的根控件，并保存在mDecor成员之中
         if (mDecor == null) {
+            // 使用generateDecor方法创建根控件
             mDecor = generateDecor();
+            // 设置根控件的焦点优先级为子控件优先
             mDecor.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+            // 设置mDecor为RootNamespace。
             mDecor.setIsRootNamespace(true);
             if (!mInvalidatePanelMenuPosted && mInvalidatePanelMenuFeatures != 0) {
                 mDecor.postOnAnimation(mInvalidatePanelMenuRunnable);
             }
         }
+        // 2。生成外观模板。根控件mDecor创建完成值之后，mDecor之中没有任何内容，此时它不过是个光杆司令，接下来generateLayout方法将会完成外观模板的创建，
+        // 并作为子控件添加到generateLayout之中
         if (mContentParent == null) {
+            // generateLayout方法负责生成外观模板，并返回模板中用于作为使用者提供的控件树的父控件的FrameLayout对象
             mContentParent = generateLayout(mDecor);
 
             // Set up decor part of UI to ignore fitsSystemWindows if appropriate.
             mDecor.makeOptionalFitsSystemWindows();
-
+            // 3。从模板中获取具有特定功能的控件并对其进行初始化属性设置
+            // findViewById委托mDecor实现，负责查找具有特定id的控件。可见虽然模板的形式可能多种多样，不过其中具有相同功能的控件
+            // 使用了相同的ID，以此保证无差别地进行访问
             mTitleView = (TextView)findViewById(com.android.internal.R.id.title);
             if (mTitleView != null) {
                 mTitleView.setLayoutDirection(mDecor.getLayoutDirection());
@@ -2909,30 +2931,24 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
                     }
 
                     boolean splitActionBar = false;
-                    final boolean splitWhenNarrow =
-                            (mUiOptions & ActivityInfo.UIOPTION_SPLIT_ACTION_BAR_WHEN_NARROW) != 0;
+                    final boolean splitWhenNarrow = (mUiOptions & ActivityInfo.UIOPTION_SPLIT_ACTION_BAR_WHEN_NARROW) != 0;
                     if (splitWhenNarrow) {
-                        splitActionBar = getContext().getResources().getBoolean(
-                                com.android.internal.R.bool.split_action_bar_is_narrow);
+                        splitActionBar = getContext().getResources().getBoolean(com.android.internal.R.bool.split_action_bar_is_narrow);
                     } else {
-                        splitActionBar = getWindowStyle().getBoolean(
-                                com.android.internal.R.styleable.Window_windowSplitActionBar, false);
+                        splitActionBar = getWindowStyle().getBoolean(com.android.internal.R.styleable.Window_windowSplitActionBar, false);
                     }
-                    final ActionBarContainer splitView = (ActionBarContainer) findViewById(
-                            com.android.internal.R.id.split_action_bar);
+                    final ActionBarContainer splitView = (ActionBarContainer) findViewById(com.android.internal.R.id.split_action_bar);
                     if (splitView != null) {
                         mActionBar.setSplitView(splitView);
                         mActionBar.setSplitActionBar(splitActionBar);
                         mActionBar.setSplitWhenNarrow(splitWhenNarrow);
 
-                        final ActionBarContextView cab = (ActionBarContextView) findViewById(
-                                com.android.internal.R.id.action_context_bar);
+                        final ActionBarContextView cab = (ActionBarContextView) findViewById(com.android.internal.R.id.action_context_bar);
                         cab.setSplitView(splitView);
                         cab.setSplitActionBar(splitActionBar);
                         cab.setSplitWhenNarrow(splitWhenNarrow);
                     } else if (splitActionBar) {
-                        Log.e(TAG, "Requested split action bar with " +
-                                "incompatible window decor! Ignoring request.");
+                        Log.e(TAG, "Requested split action bar with " + "incompatible window decor! Ignoring request.");
                     }
 
                     // Post the panel invalidate for later; avoid application onCreateOptionsMenu
@@ -2953,8 +2969,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
 
     private Drawable loadImageURI(Uri uri) {
         try {
-            return Drawable.createFromStream(
-                    getContext().getContentResolver().openInputStream(uri), null);
+            return Drawable.createFromStream(getContext().getContentResolver().openInputStream(uri), null);
         } catch (Exception e) {
             Log.w(TAG, "Unable to open content: " + uri);
         }

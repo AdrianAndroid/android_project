@@ -4366,15 +4366,17 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (DBG) {
             System.out.println(this + " requestFocus()");
         }
-
+        // 1. 把PFLAG_FOCUSED标记加入mPrivateFlags中。这便表示此控件已经拥有焦点了
         if ((mPrivateFlags & PFLAG_FOCUSED) == 0) {
             mPrivateFlags |= PFLAG_FOCUSED;
-
+            // 2。将这一变化通知其父控件。这一操作的主要目的是保证控件树中只有一个控件拥有焦点，并且ViewRootImpl触发一次"遍历"以便对控件树进行重绘。
             if (mParent != null) {
                 mParent.requestChildFocus(this, this);
             }
-
+            // 3。通知对此控件焦点变化感兴趣的监听者。在这个方法中，View.onFocusLose()、onFocusChangeListener()都会被调用。
+            // 另外，控件焦点决定了输入法的输入对象，因此InputMethodManager的focusIn() and focusOut()也会在这里被调用以更新输入法的状态
             onFocusChanged(true, direction, previouslyFocusedRect);
+            // 4。更新控件的Drawable状态。这将使得控件在随后的绘制中得以高亮显示
             refreshDrawableState();
 
             if (AccessibilityManager.getInstance(mContext).isEnabled()) {
@@ -6276,8 +6278,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     public View focusSearch(int direction) {
         if (mParent != null) {
+            // 查找工作会交给父控件完成
             return mParent.focusSearch(this, direction);
         } else {
+            // 如果控件没有父控件就直接返回null，毕竟一个控件没有添加到控件树中查找下一个焦点是没有意义的
             return null;
         }
     }
@@ -6587,6 +6591,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @return Whether this view or one of its descendants actually took focus.
      */
     public final boolean requestFocus() {
+        // 调用requestFocuse的一个重载。View.FOCUS_DOWN表示焦点的寻找方向。当本控件是一个ViewGroup时将会从左上角开始沿着这个方向查找
+        // 可以获取焦点的子控件。不过在本例只讨论控件是一个View时的情况，此时该参数并无任何效果。
         return requestFocus(View.FOCUS_DOWN);
     }
 
@@ -6608,6 +6614,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @return Whether this view or one of its descendants actually took focus.
      */
     public final boolean requestFocus(int direction) {
+        // 继续调用另外一个重载，新的重载中国呢增加了一个Rect作为参数。此Rect表示了上一个焦点控件的区域。
+        // 它表示从哪个位置开始沿着direction所指定的方向查找焦点控件。仅当本控件是ViewGroup时此参数才有意义。
         return requestFocus(direction, null);
     }
 
@@ -6641,27 +6649,32 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @return Whether this view or one of its descendants actually took focus.
      */
     public boolean requestFocus(int direction, Rect previouslyFocusedRect) {
+        // requestFocus的这一重载便是View和ViewGroup分道扬镳的地方。requestFocusNoSearch方法的意义就是无需查找，直接使本控件获取焦点
         return requestFocusNoSearch(direction, previouslyFocusedRect);
     }
 
     private boolean requestFocusNoSearch(int direction, Rect previouslyFocusedRect) {
+        // 首先检查一下此控件是否符合拥有焦点的条件
+
         // need to be focusable
-        if ((mViewFlags & FOCUSABLE_MASK) != FOCUSABLE ||
-                (mViewFlags & VISIBILITY_MASK) != VISIBLE) {
+        // 1。首先，此控件必须是Focusable的。可以通过View.setFocusable方法设置控件是否focusable
+        if ((mViewFlags & FOCUSABLE_MASK) != FOCUSABLE || (mViewFlags & VISIBILITY_MASK) != VISIBLE) {
             return false;
         }
 
         // need to be focusable in touch mode if in touch mode
-        if (isInTouchMode() &&
-                (FOCUSABLE_IN_TOUCH_MODE != (mViewFlags & FOCUSABLE_IN_TOUCH_MODE))) {
+        // 2。再者如果系统目前处于触摸模式，则要要求此控件必须可以在触摸模式下拥有焦点
+        if (isInTouchMode() && (FOCUSABLE_IN_TOUCH_MODE != (mViewFlags & FOCUSABLE_IN_TOUCH_MODE))) {
             return false;
         }
 
         // need to not have any parents blocking us
+        // 3。最后，如果任一父控件的DescendatFocuableility取值为FOCUS_BLOCK_DESCENDANTS时，阻止此控件获取焦点。
+        // hasAncestorThatBlocksDescendantFocus会沿着控件树一路回溯到整个控件树的跟控件并逐一检查DescendantFocusablility特性的取值
         if (hasAncestorThatBlocksDescendantFocus()) {
             return false;
         }
-
+        // 4。最后调用handleFocusGainInternal使此控件获得焦点
         handleFocusGainInternal(direction, previouslyFocusedRect);
         return true;
     }
@@ -7176,6 +7189,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @return True if the event was handled, false otherwise.
      */
     public boolean dispatchKeyEventPreIme(KeyEvent event) {
+        // 调用onKeyPreIme尝试消费这个事件。View.onPreIme()在View中是一个空的实现，直接返回false表示此控件并不希望在输入法之前消费这个事件。
+        // View的子类可以重写这个方法以消费它，并通过返回true阻止输入法获得这一事件。
         return onKeyPreIme(event.getKeyCode(), event);
     }
 
@@ -7196,20 +7211,22 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
         // Give any attached key listener a first crack at the event.
         //noinspection SimplifiableIfStatement
+        // 1。首先由OnKeyListener监听者尝试处理事件。它可以通过View.setOnKeyListener进行设置
         ListenerInfo li = mListenerInfo;
         if (li != null && li.mOnKeyListener != null && (mViewFlags & ENABLED_MASK) == ENABLED
                 && li.mOnKeyListener.onKey(this, event.getKeyCode(), event)) {
             return true;
         }
-
-        if (event.dispatch(this, mAttachInfo != null
-                ? mAttachInfo.mKeyDispatchState : null, this)) {
+        // 2。通过event.dispatch方法将事件发送给View的指定回调，如onKeyDown/onKeyUp等
+        if (event.dispatch(this, mAttachInfo != null ? mAttachInfo.mKeyDispatchState : null, this)) {
+            // 如果控件的onKeyDown/onKeyUp等回调消费了事件则返回true
             return true;
         }
 
         if (mInputEventConsistencyVerifier != null) {
             mInputEventConsistencyVerifier.onUnhandledEvent(event, 0);
         }
+        // 此控件没有消费这个事件
         return false;
     }
 
@@ -7234,7 +7251,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (mInputEventConsistencyVerifier != null) {
             mInputEventConsistencyVerifier.onTouchEvent(event, 0);
         }
-
+        // 1。首先触摸事件必须经过onFilterTouchEventForSecurity过滤。处于对最终用户的信息安全角度的考虑，当本窗口位于另外一个非全屏窗口之下时，可能会阻止控件处理触摸事件
         if (onFilterTouchEventForSecurity(event)) {
             //noinspection SimplifiableIfStatement
             ListenerInfo li = mListenerInfo;
@@ -7242,7 +7259,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                     && li.mOnTouchListener.onTouch(this, event)) {
                 return true;
             }
-
+            // 倘若mOnTouchListener对事件不感兴趣，则尝试令onTouchEvent回调处理事件
             if (onTouchEvent(event)) {
                 return true;
             }
@@ -7423,8 +7440,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     public final boolean dispatchPointerEvent(MotionEvent event) {
         if (event.isTouchEvent()) {
+            // 如果是一个触摸事件，则通过dispatchTouchEvent进行派发
             return dispatchTouchEvent(event);
         } else {
+            // 否则通过dispatchGenericMotionEvent进行派发
             return dispatchGenericMotionEvent(event);
         }
     }

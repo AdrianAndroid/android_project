@@ -3219,16 +3219,24 @@ public final class ViewRootImpl implements ViewParent,
 
     private void deliverInputEvent(QueuedInputEvent q) {
         Trace.traceBegin(Trace.TRACE_TAG_VIEW, "deliverInputEvent");
+        // deliverKeyEvent           ：用于派发案件类型的事件。它选择的是基于焦点的派发策略
+        // deliverPointerEvent       ：用于派发标准的轨迹球事件。它选择的是基于位置的派发策略
+        // deliverTrackballEvent     ：用于派发轨迹球事件。它的实现比较特殊，在使用基于焦点的派发策略将事件派发之后，倘若没有任何一个派发目标处理此事件，它将会把事件转化为一个表示方向键的按键事件并添加到ViewRootImpl的输入事件队列之后
+        // deliverGenericMotionEvent ：用于派发其他的Motion事件。这里一个大杂烩，悬浮事件、游戏手柄等会在这里被处理。
         try {
             if (q.mEvent instanceof KeyEvent) {
+                // 处理按键事件
                 deliverKeyEvent(q);
             } else {
                 final int source = q.mEvent.getSource();
                 if ((source & InputDevice.SOURCE_CLASS_POINTER) != 0) {
+                    // 处理触摸事件
                     deliverPointerEvent(q);
                 } else if ((source & InputDevice.SOURCE_CLASS_TRACKBALL) != 0) {
+                    // 处理轨迹球事件
                     deliverTrackballEvent(q);
                 } else {
+                    // 处理其他Motion事件，如悬浮（HOVER）、游戏手柄等
                     deliverGenericMotionEvent(q);
                 }
             }
@@ -3260,12 +3268,17 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         // Enter touch mode on down or scroll.
+        // 1。当这是一个按下事件时，将会进入触摸模式。此时将会重新设置焦点控件
         final int action = event.getAction();
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_SCROLL) {
+            // ensureTouchMode负责进入后退出触摸模式，它会重新设置焦点控件，并将触摸模式同步到WMS，
+            // 以便以后所创建的窗口可以从WMS得知应当工作在何种模式下。
             ensureTouchMode(true);
         }
 
         // Offset the scroll position.
+        // VierRootImpl所收到的触摸事件位于窗口的坐标系之下。将其派发给根控件时需要将其对坐标转换到根控件下。
+        // 根控件的坐标一与窗口坐标系的区别在于Y方向上的滚动量mCurScrollY
         if (mCurScrollY != 0) {
             event.offsetLocation(0, mCurScrollY);
         }
@@ -3280,16 +3293,19 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         // Dispatch touch to view hierarchy.
+        // 2。将触摸事件派发给控件树
         boolean handled = mView.dispatchPointerEvent(event);
         if (MEASURE_LATENCY) {
             lt.sample("B Dispatched PointerEvents ", System.nanoTime() - event.getEventTimeNano());
         }
         if (handled) {
+            // 事件已被消费，结束派发工作
             finishInputEvent(q, true);
             return;
         }
 
         // Pointer event was unhandled.
+        // 事件没有消费，结束派发工作
         finishInputEvent(q, false);
     }
 
@@ -3657,46 +3673,58 @@ public final class ViewRootImpl implements ViewParent,
     }
 
     private void deliverKeyEvent(QueuedInputEvent q) {
+        // 从QueuedInputEvent中获取KeyEvent
         final KeyEvent event = (KeyEvent)q.mEvent;
         if (mInputEventConsistencyVerifier != null) {
             mInputEventConsistencyVerifier.onKeyEvent(event, 0);
         }
-
+        // 首先按键事件会尝试派发给输入法。将按键事件派发给输入法有三个条件，其中mView不为null，以及mAdded为true比较好理解，它们
+        // 分别表示ViewRootImpl中存在一棵控件树，并且其所在窗口已经被创建。而第三个条件是QueueuedInputEvent.mFlags中不存在
+        // FLAGE_DEVIER_POST_IME标记
         if (mView != null && mAdded && (q.mFlags & QueuedInputEvent.FLAG_DELIVER_POST_IME) == 0) {
             if (LOCAL_LOGV) Log.v(TAG, "Dispatching key " + event + " to " + mView);
 
             // Perform predispatching before the IME.
+            // 1。首先，View.dispatchKeyEventPreIme方法将输入事件派发给控件树。这是控件树中的控件第一次有机会处理按键事件
             if (mView.dispatchKeyEventPreIme(event)) {
+                // 如果控件消费了这一事件，则结束派发工作
                 finishInputEvent(q, true);
                 return;
             }
 
             // Dispatch to the IME before propagating down the view hierarchy.
             // The IME will eventually call back into handleImeFinishedEvent.
+            // 2。将按键事件派发给输入法。mLastWasImTarget表示此窗口可能是输入法的输入目标
             if (mLastWasImTarget) {
                 InputMethodManager imm = InputMethodManager.peekInstance();
                 if (imm != null) {
+                    // 通过InputMethodmanager.dispatchKeyEvent将事件派发给输入法。同时终止此次事件的派发过程。
+                    // 注意此方法的最后一个参数mInputMehthodCallback，它是一个实现了InputMethodManager.FinishedEventCallback接口的回调。
+                    // 无论输入法是否消费这个事件，此回调都会收到通知，ViewRootImpl可以在收到这一通知后销毁此事件并结束派发，获奖事件重新派发给控件树
                     final int seq = event.getSequenceNumber();
-                    if (DEBUG_IMF) Log.v(TAG, "Sending key event to IME: seq="
-                            + seq + " event=" + event);
+                    if (DEBUG_IMF) Log.v(TAG, "Sending key event to IME: seq=" + seq + " event=" + event);
                     imm.dispatchKeyEvent(mView.getContext(), seq, event, mInputMethodCallback);
+                    // 终止派发工作，对于此事件的后续处理将在mInputMethodCallback回调中进行回调
                     return;
                 }
             }
         }
 
         // Not dispatching to IME, continue with post IME actions.
+        // 3。将输入事件派发给控件树。执行到这一步往往是由于QueuedInputEvent.mFlags中存在PFLAG_DELIVER_POST_IME标记
+        // 而deliverKeyEventPostIme将会再次把事件派发给控件树。这是控件第二次有机会处理按键事件
         deliverKeyEventPostIme(q);
     }
 
     void handleImeFinishedEvent(int seq, boolean handled) {
         final QueuedInputEvent q = mCurrentInputEvent;
+        // 继续派发工作的前提是必须与mCurrentInputEvent一致，否者这一回调将会被忽略
         if (q != null && q.mEvent.getSequenceNumber() == seq) {
             if (DEBUG_IMF) {
-                Log.v(TAG, "IME finished event: seq=" + seq
-                        + " handled=" + handled + " event=" + q);
+                Log.v(TAG, "IME finished event: seq=" + seq + " handled=" + handled + " event=" + q);
             }
             if (handled) {
+                // 1。如果输入法消费了这一事件，则终止此事件的派发工作
                 finishInputEvent(q, true);
             } else {
                 if (q.mEvent instanceof KeyEvent) {
@@ -3711,11 +3739,11 @@ public final class ViewRootImpl implements ViewParent,
                             return;
                         }
                     }
+                    // 2。通过deliverKeyEventPostIme将输入事件重新派发给控件树
                     deliverKeyEventPostIme(q);
                 } else {
                     MotionEvent event = (MotionEvent)q.mEvent;
-                    if (event.getAction() != MotionEvent.ACTION_CANCEL
-                            && event.getAction() != MotionEvent.ACTION_UP) {
+                    if (event.getAction() != MotionEvent.ACTION_CANCEL && event.getAction() != MotionEvent.ACTION_UP) {
                         // If the window doesn't currently have input focus, then drop
                         // this event.  This could be an event that came back from the
                         // IME dispatch but the window has lost focus in the meantime.
@@ -3735,12 +3763,18 @@ public final class ViewRootImpl implements ViewParent,
             }
         } else {
             if (DEBUG_IMF) {
-                Log.v(TAG, "IME finished event: seq=" + seq
-                        + " handled=" + handled + ", event not found!");
+                Log.v(TAG, "IME finished event: seq=" + seq + " handled=" + handled + ", event not found!");
             }
         }
     }
 
+    /**
+     * TouchMode
+     * 控件树中的控件
+     * mFallbackEventHandler
+     * 焦点游走
+     * @param q
+     */
     private void deliverKeyEventPostIme(QueuedInputEvent q) {
         final KeyEvent event = (KeyEvent)q.mEvent;
 
@@ -3751,13 +3785,14 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         // If the key's purpose is to exit touch mode then we consume it and consider it handled.
+        // 1。首先，检查此按键事件是否会退出触摸模式。一般来说，方向键、字母键的按下事件都标识着用户将会以按键的方式操作Android，此时需要退出触摸模式
         if (checkForLeavingTouchModeAndConsume(event)) {
             finishInputEvent(q, true);
             return;
         }
 
-        // Make sure the fallback event policy sees all keys that will be delivered to the
-        // view hierarchy.
+        // Make sure the fallback event policy sees all keys that will be delivered to the view hierarchy.
+        // 2。 在正式开始事件的派发之前，首先让mFallbackEventHandler过目一下
         mFallbackEventHandler.preDispatchKeyEvent(event);
 
         // Deliver the key to the view hierarchy.
@@ -3778,17 +3813,22 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         // Apply the fallback event policy.
+        // 3。将事件派发给控件树。这是本方法最重要的工作
         if (mFallbackEventHandler.dispatchKeyEvent(event)) {
             finishInputEvent(q, true);
             return;
         }
 
         // Handle automatic focus changes.
+        // 5。 处理方向键的按下事件。用于使焦点在控件之间游走
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int direction = 0;
+            // 根据KeyEvent.getKeyCode确定焦点游走的方向
             switch (event.getKeyCode()) {
                 case KeyEvent.KEYCODE_DPAD_LEFT:
                     if (event.hasNoModifiers()) {
+                        // 按下左键，则标识将焦点移动到当前焦点控件左侧的控件上
+                        // KeyEvent.hasNoFilters()表示此时Alt/Ctrl/Shift没有按下
                         direction = View.FOCUS_LEFT;
                     }
                     break;
@@ -3816,8 +3856,10 @@ public final class ViewRootImpl implements ViewParent,
                     break;
             }
             if (direction != 0) {
+                // 获取当前的焦点控件
                 View focused = mView.findFocus();
                 if (focused != null) {
+                    // 熟悉的focused.focusSearch方法，
                     View v = focused.focusSearch(direction);
                     if (v != null && v != focused) {
                         // do the math the get the interesting rect
@@ -3825,14 +3867,13 @@ public final class ViewRootImpl implements ViewParent,
                         // newly focused view
                         focused.getFocusedRect(mTempRect);
                         if (mView instanceof ViewGroup) {
-                            ((ViewGroup) mView).offsetDescendantRectToMyCoords(
-                                    focused, mTempRect);
-                            ((ViewGroup) mView).offsetRectIntoDescendantCoords(
-                                    v, mTempRect);
+                            ((ViewGroup) mView).offsetDescendantRectToMyCoords(focused, mTempRect);
+                            ((ViewGroup) mView).offsetRectIntoDescendantCoords(v, mTempRect);
                         }
+                        // View.requestFocus方法将此控件获取焦点
                         if (v.requestFocus(direction, mTempRect)) {
-                            playSoundEffect(SoundEffectConstants
-                                    .getContantForFocusDirection(direction));
+                            playSoundEffect(SoundEffectConstants.getContantForFocusDirection(direction));
+                            // 结束事件的派发
                             finishInputEvent(q, true);
                             return;
                         }
@@ -3848,6 +3889,7 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         // Key was unhandled.
+        // 最终，此事件没有任何一个对象对其感兴趣，终止事件的派发
         finishInputEvent(q, false);
     }
 
@@ -4310,8 +4352,8 @@ public final class ViewRootImpl implements ViewParent,
         enqueueInputEvent(event, null, 0, false);
     }
 
-    void enqueueInputEvent(InputEvent event,
-                           InputEventReceiver receiver, int flags, boolean processImmediately) {
+    void enqueueInputEvent(InputEvent event, InputEventReceiver receiver, int flags, boolean processImmediately) {
+        // 1。将InputEvent对应的InputEventReceiver封装为一个QueuedInputEvent。QueuedInputEvent将是输入事件在ViewRootImpl中存在形式
         QueuedInputEvent q = obtainQueuedInputEvent(event, receiver, flags);
 
         // Always enqueue the input event in order, regardless of its time stamp.
@@ -4319,6 +4361,7 @@ public final class ViewRootImpl implements ViewParent,
         // in response to touch events and we want to ensure that the injected keys
         // are processed in the order they were received and we cannot trust that
         // the time stamp of injected events are monotonic.
+        // 2。将新建的QueuedInputEvent追加到mFirstPendingInputEvent所表示的一个单向链表之中。ViewRootImpl将会沿着链表从头至尾地处理输入事件。
         QueuedInputEvent last = mFirstPendingInputEvent;
         if (last == null) {
             mFirstPendingInputEvent = q;
@@ -4330,8 +4373,10 @@ public final class ViewRootImpl implements ViewParent,
         }
 
         if (processImmediately) {
+            // 3。倘若第三个参数为true，则直接在当前线程中开始对输入事件的处理工作
             doProcessInputEvents();
         } else {
+            // 4。否则将处理事件的请求发送给主线程的Handler，随后进行处理
             scheduleProcessInputEvents();
         }
     }
@@ -4346,11 +4391,14 @@ public final class ViewRootImpl implements ViewParent,
     }
 
     void doProcessInputEvents() {
+        // 遍历整个输入事件队列，逐个处理这些事件
         while (mCurrentInputEvent == null && mFirstPendingInputEvent != null) {
             QueuedInputEvent q = mFirstPendingInputEvent;
             mFirstPendingInputEvent = q.mNext;
             q.mNext = null;
+            // 1。正在处理的输入事件会被保存为mCurrentInputEvent
             mCurrentInputEvent = q;
+            // 2。deliverInputEvent方法将会完成单个事件的整个处理流程
             deliverInputEvent(q);
         }
 
@@ -4363,19 +4411,23 @@ public final class ViewRootImpl implements ViewParent,
     }
 
     private void finishInputEvent(QueuedInputEvent q, boolean handled) {
+        // 倘若被完成的输入事件不是mCurrentInputEvent,则抛出异常
         if (q != mCurrentInputEvent) {
             throw new IllegalStateException("finished input event out of order");
         }
-
+        // 1。回收输入事件并向InputDispatcher发送反馈
         if (q.mReceiver != null) {
+            // 如果mReceiver为null，表示这是一个来自InputDispatcher的事件，需要向InputDispatcher发送反馈。事件实例的回收由InputEventRecdeiver托管完成。
             q.mReceiver.finishInputEvent(q.mEvent, handled);
         } else {
+            // 如果mReceiver为null，表示这是ViewRootImpl自行创建的事件，此时只要将事件实例回收即可。不需要惊动InputDispatcher
             q.mEvent.recycleIfNeededAfterDispatch();
         }
-
+        // 2。回收不再有效的QueuedInputEvent实例。被回收的实例会组成一个以mQueuedInputEventPool为头部的单向链表中。下次使用obtainQueuedInputEvent时可以复用这个实例
         recycleQueuedInputEvent(q);
-
+        // 设置mCurrentInputEvent为null
         mCurrentInputEvent = null;
+        // 如果队列中有了新的输入事件，则重新启动输入事件的派发
         if (mFirstPendingInputEvent != null) {
             scheduleProcessInputEvents();
         }
@@ -4422,6 +4474,7 @@ public final class ViewRootImpl implements ViewParent,
 
         @Override
         public void onInputEvent(InputEvent event) {
+            // 通过enqueueInputEvent将输入事件入队，注意第三个参数为true
             enqueueInputEvent(event, this, 0, true);
         }
 
