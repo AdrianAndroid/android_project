@@ -11,6 +11,9 @@ import com.joyy.android_project.AutoTransition;
 import com.joyy.android_project.R;
 import com.joyy.android_project.TransitionManager;
 
+// Android Transition（Android过渡动画）
+// https://blog.csdn.net/wuyuxing24/article/details/78857912
+
 public class DemoActivity extends AppCompatActivity {
 
     ConstraintSet set1 = new ConstraintSet();

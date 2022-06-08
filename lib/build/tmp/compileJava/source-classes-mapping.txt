@@ -1,0 +1,2 @@
+com/example/lib/MyClass.java
+ com.example.lib.MyClass
