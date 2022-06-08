@@ -63,8 +63,7 @@ class RoundRectDrawable extends Drawable {
     }
 
     void setPadding(float padding, boolean insetForPadding, boolean insetForRadius) {
-        if (padding == mPadding && mInsetForPadding == insetForPadding
-                && mInsetForRadius == insetForRadius) {
+        if (padding == mPadding && mInsetForPadding == insetForPadding && mInsetForRadius == insetForRadius) {
             return;
         }
         mPadding = padding;
@@ -84,12 +83,14 @@ class RoundRectDrawable extends Drawable {
 
         final boolean clearColorFilter;
         if (mTintFilter != null && paint.getColorFilter() == null) {
+            // 详解Paint的setColorFilter(ColorFilter filter)
+            // http://t.zoukankan.com/tianzhijiexian-p-4297104.html
             paint.setColorFilter(mTintFilter);
             clearColorFilter = true;
         } else {
             clearColorFilter = false;
         }
-
+        // 有圆角的矩形
         canvas.drawRoundRect(mBoundsF, mRadius, mRadius, paint);
 
         if (clearColorFilter) {
@@ -106,7 +107,7 @@ class RoundRectDrawable extends Drawable {
         if (mInsetForPadding) {
             float vInset = RoundRectDrawableWithShadow.calculateVerticalPadding(mPadding, mRadius, mInsetForRadius);
             float hInset = RoundRectDrawableWithShadow.calculateHorizontalPadding(mPadding, mRadius, mInsetForRadius);
-            mBoundsI.inset((int) Math.ceil(hInset), (int) Math.ceil(vInset));
+            mBoundsI.inset((int) Math.ceil(hInset), (int) Math.ceil(vInset)); // 一个缩小的区域
             // to make sure they have same bounds.
             mBoundsF.set(mBoundsI);
         }

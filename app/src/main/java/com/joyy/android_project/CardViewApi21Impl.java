@@ -23,10 +23,9 @@ import android.view.View;
 class CardViewApi21Impl implements CardViewImpl {
 
     @Override
-    public void initialize(CardViewDelegate cardView, Context context,
-                           ColorStateList backgroundColor, float radius, float elevation, float maxElevation) {
+    public void initialize(CardViewDelegate cardView, Context context, ColorStateList backgroundColor, float radius, float elevation, float maxElevation) {
         final RoundRectDrawable background = new RoundRectDrawable(backgroundColor, radius);
-        cardView.setCardBackground(background);
+        cardView.setCardBackground(background); // 设置背景色
 
         View view = cardView.getCardView();
         view.setClipToOutline(true);
@@ -45,8 +44,7 @@ class CardViewApi21Impl implements CardViewImpl {
 
     @Override
     public void setMaxElevation(CardViewDelegate cardView, float maxElevation) {
-        getCardBackground(cardView).setPadding(maxElevation,
-                cardView.getUseCompatPadding(), cardView.getPreventCornerOverlap());
+        getCardBackground(cardView).setPadding(maxElevation, cardView.getUseCompatPadding(), cardView.getPreventCornerOverlap());
         updatePadding(cardView);
     }
 
@@ -88,10 +86,8 @@ class CardViewApi21Impl implements CardViewImpl {
         }
         float elevation = getMaxElevation(cardView);
         final float radius = getRadius(cardView);
-        int hPadding = (int) Math.ceil(RoundRectDrawableWithShadow
-                .calculateHorizontalPadding(elevation, radius, cardView.getPreventCornerOverlap()));
-        int vPadding = (int) Math.ceil(RoundRectDrawableWithShadow
-                .calculateVerticalPadding(elevation, radius, cardView.getPreventCornerOverlap()));
+        int hPadding = (int) Math.ceil(RoundRectDrawableWithShadow.calculateHorizontalPadding(elevation, radius, cardView.getPreventCornerOverlap()));
+        int vPadding = (int) Math.ceil(RoundRectDrawableWithShadow.calculateVerticalPadding(elevation, radius, cardView.getPreventCornerOverlap()));
         cardView.setShadowPadding(hPadding, vPadding, hPadding, vPadding);
     }
 

@@ -70,6 +70,10 @@ import android.widget.FrameLayout;
  * @attr ref androidx.cardview.R.styleable#CardView_contentPaddingRight
  * @attr ref androidx.cardview.R.styleable#CardView_contentPaddingBottom
  */
+// CardView属性app:cardUseCompatPadding和app:cardPreventCornerOverlap https://blog.csdn.net/suyimin2010/article/details/92796428
+// CardView源码解析-View阴影 https://blog.csdn.net/Theo_Yan/article/details/77170355
+// （三十六）CardView 使用及源码分析 https://blog.csdn.net/qq_18983205/article/details/78691542/
+// AndroidX学习之---CardView  https://www.jianshu.com/p/36ef15c11ce5
 public class CardView extends FrameLayout {
 
     private static final int[] COLOR_BACKGROUND_ATTR = {android.R.attr.colorBackground};
@@ -114,9 +118,9 @@ public class CardView extends FrameLayout {
     public CardView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
 
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CardView, defStyleAttr,
-                R.style.CardView);
+        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CardView, defStyleAttr, R.style.CardView);
         ColorStateList backgroundColor;
+        // 背景色
         if (a.hasValue(R.styleable.CardView_cardBackgroundColor)) {
             backgroundColor = a.getColorStateList(R.styleable.CardView_cardBackgroundColor);
         } else {
@@ -132,20 +136,22 @@ public class CardView extends FrameLayout {
                     ? getResources().getColor(R.color.cardview_light_background)
                     : getResources().getColor(R.color.cardview_dark_background));
         }
+        // 圆角
         float radius = a.getDimension(R.styleable.CardView_cardCornerRadius, 0);
+        // 设置阴影的大小
         float elevation = a.getDimension(R.styleable.CardView_cardElevation, 0);
+        // 设置最大阴影的大小
         float maxElevation = a.getDimension(R.styleable.CardView_cardMaxElevation, 0);
+        // 内边距
         mCompatPadding = a.getBoolean(R.styleable.CardView_cardUseCompatPadding, false);
+        // 设置内边距，在V20和之前的版本中添加内边距，这个属性为了防止内容和边角的重叠
         mPreventCornerOverlap = a.getBoolean(R.styleable.CardView_cardPreventCornerOverlap, true);
+        // 内边距
         int defaultPadding = a.getDimensionPixelSize(R.styleable.CardView_contentPadding, 0);
-        mContentPadding.left = a.getDimensionPixelSize(R.styleable.CardView_contentPaddingLeft,
-                defaultPadding);
-        mContentPadding.top = a.getDimensionPixelSize(R.styleable.CardView_contentPaddingTop,
-                defaultPadding);
-        mContentPadding.right = a.getDimensionPixelSize(R.styleable.CardView_contentPaddingRight,
-                defaultPadding);
-        mContentPadding.bottom = a.getDimensionPixelSize(R.styleable.CardView_contentPaddingBottom,
-                defaultPadding);
+        mContentPadding.left = a.getDimensionPixelSize(R.styleable.CardView_contentPaddingLeft, defaultPadding);
+        mContentPadding.top = a.getDimensionPixelSize(R.styleable.CardView_contentPaddingTop, defaultPadding);
+        mContentPadding.right = a.getDimensionPixelSize(R.styleable.CardView_contentPaddingRight, defaultPadding);
+        mContentPadding.bottom = a.getDimensionPixelSize(R.styleable.CardView_contentPaddingBottom, defaultPadding);
         if (elevation > maxElevation) {
             maxElevation = elevation;
         }
@@ -153,8 +159,7 @@ public class CardView extends FrameLayout {
         mUserSetMinHeight = a.getDimensionPixelSize(R.styleable.CardView_android_minHeight, 0);
         a.recycle();
 
-        IMPL.initialize(mCardViewDelegate, context, backgroundColor, radius,
-                elevation, maxElevation);
+        IMPL.initialize(mCardViewDelegate, context, backgroundColor, radius, elevation, maxElevation);
     }
 
     @Override
@@ -229,8 +234,7 @@ public class CardView extends FrameLayout {
                 case MeasureSpec.EXACTLY:
                 case MeasureSpec.AT_MOST:
                     final int minWidth = (int) Math.ceil(IMPL.getMinWidth(mCardViewDelegate));
-                    widthMeasureSpec = MeasureSpec.makeMeasureSpec(Math.max(minWidth,
-                            MeasureSpec.getSize(widthMeasureSpec)), widthMode);
+                    widthMeasureSpec = MeasureSpec.makeMeasureSpec(Math.max(minWidth, MeasureSpec.getSize(widthMeasureSpec)), widthMode);
                     break;
                 case MeasureSpec.UNSPECIFIED:
                     // Do nothing
@@ -242,8 +246,7 @@ public class CardView extends FrameLayout {
                 case MeasureSpec.EXACTLY:
                 case MeasureSpec.AT_MOST:
                     final int minHeight = (int) Math.ceil(IMPL.getMinHeight(mCardViewDelegate));
-                    heightMeasureSpec = MeasureSpec.makeMeasureSpec(Math.max(minHeight,
-                            MeasureSpec.getSize(heightMeasureSpec)), heightMode);
+                    heightMeasureSpec = MeasureSpec.makeMeasureSpec(Math.max(minHeight, MeasureSpec.getSize(heightMeasureSpec)), heightMode);
                     break;
                 case MeasureSpec.UNSPECIFIED:
                     // Do nothing
@@ -444,7 +447,8 @@ public class CardView extends FrameLayout {
         @Override
         public void setCardBackground(Drawable drawable) {
             mCardBackground = drawable;
-            setBackgroundDrawable(drawable);
+            //setBackgroundDrawable(drawable);
+            setBackground(drawable);
         }
 
         @Override
@@ -460,8 +464,11 @@ public class CardView extends FrameLayout {
         @Override
         public void setShadowPadding(int left, int top, int right, int bottom) {
             mShadowBounds.set(left, top, right, bottom);
-            CardView.super.setPadding(left + mContentPadding.left, top + mContentPadding.top,
-                    right + mContentPadding.right, bottom + mContentPadding.bottom);
+            CardView.super.setPadding(
+                    left + mContentPadding.left,
+                    top + mContentPadding.top,
+                    right + mContentPadding.right,
+                    bottom + mContentPadding.bottom);
         }
 
         @Override
@@ -485,3 +492,100 @@ public class CardView extends FrameLayout {
         }
     };
 }
+
+
+/*
+
+Math
+sin
+cos
+tan
+asin
+acos
+atan
+toRadians
+toDegrees
+exp
+log
+log10
+sqrt
+cbrt
+IEEEremainder
+ceil
+floor
+rint
+atan2
+pow
+round
+round
+random
+setRandomSeedInternal
+randomIntInternal
+randomLongInternal
+addExact
+addExact
+subtractExact
+subtractExact
+multiplyExact
+multiplyExact
+multiplyExact
+incrementExact
+incrementExact
+decrementExact
+decrementExact
+negateExact
+negateExact
+toIntExact
+multiplyFull
+multiplyHigh
+floorDiv
+floorDiv
+floorDiv
+floorMod
+floorMod
+floorMod
+abs
+abs
+abs
+abs
+max
+max
+max
+max
+min
+min
+min
+min
+ulp
+ulp
+signum
+signum
+sinh
+cosh
+tanh
+hypot
+expm1
+log1p
+copySign
+copySign
+getExponent
+getExponent
+nextAfter
+nextAfter
+nextUp
+nextUp
+nextDown
+nextDown
+scalb
+scalb
+powerOfTwoD
+powerOfTwoF
+E
+PI
+DEGREES_TO_RADIANS
+RADIANS_TO_DEGREES
+negativeZeroFloatBits
+negativeZeroDoubleBits
+twoToTheDoubleScaleUp
+twoToTheDoubleScaleDown
+ */
