@@ -18,6 +18,10 @@ class MainActivity : AppCompatActivity() {
         super.onPostResume()
     }
 
+    override fun onBackPressed() {
+        super.onBackPressed()
+    }
+
     /**
      * This is the fragment-orientated version of {@link #onResume()} that you
      * can override to perform operations in the Activity at the same point
