@@ -7,6 +7,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.util.Collections;
 import java.util.Map;
 
 public class ExpandableActivity extends AppCompatActivity {
@@ -34,7 +35,7 @@ public class ExpandableActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 //获取被点击图标所在的group的索引
-                Map<String, Object> map = (Map<String, Object>) v.getTag();
+                Map<String, Object> map = Collections.unmodifiableMap((Map<String, Object>) v.getTag());
                 int groupPosition = (int) map.get("groupPosition");
 //                boolean isExpand = (boolean) map.get("isExpanded");   //这种是通过tag传值
                 boolean isExpand = elv01.isGroupExpanded(groupPosition);    //判断分组是否展开
@@ -42,7 +43,7 @@ public class ExpandableActivity extends AppCompatActivity {
                 if (isExpand) {
                     elv01.collapseGroup(groupPosition);
                 } else {
-                    elv01.expandGroup(groupPosition);
+                    elv01.expandGroup(groupPosition, true);
                 }
             }
         };
@@ -60,11 +61,11 @@ public class ExpandableActivity extends AppCompatActivity {
             @Override
             public void onGroupExpand(int groupPosition) {
                 //遍历 group 的数组（或集合），判断当前被点击的位置与哪个组索引一致，不一致就合并起来。
-                for (int i = 0; i < classes.length; i++) {
-                    if (i != groupPosition) {
-                        elv01.collapseGroup(i); //收起某个指定的组
-                    }
-                }
+//                for (int i = 0; i < classes.length; i++) {
+//                    if (i != groupPosition) {
+//                        elv01.collapseGroup(i); //收起某个指定的组
+//                    }
+//                }
             }
         });
 
