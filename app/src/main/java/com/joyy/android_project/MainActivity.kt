@@ -2,6 +2,8 @@ package com.joyy.android_project
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -26,5 +28,9 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onResumeFragments() {
         super.onResumeFragments()
+    }
+
+    fun test() {
+        var handler = Handler(Looper.myLooper()!!)
     }
 }
