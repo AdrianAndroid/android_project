@@ -1,7 +1,9 @@
 package com.joyy.android_project
 
 import android.os.Bundle
+import android.text.method.ScrollingMovementMethod
 import android.view.View
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
@@ -10,7 +12,9 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
 
-        findViewById<View>(R.id.tv1).requestFocus()
+        var tv1 = findViewById<TextView>(R.id.tv1)
+        tv1.movementMethod = ScrollingMovementMethod.getInstance()
+        tv1.requestFocus()
     }
 
     /**
