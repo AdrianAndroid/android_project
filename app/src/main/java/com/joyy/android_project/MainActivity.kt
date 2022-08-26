@@ -14,10 +14,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        findViewById<TextView>(R.id.androidId).apply {
-            var string = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
-            text = "ANDROID_ID:" + string
-        }
         var listView = findViewById<ListView>(R.id.listView)
         var arrayOf = arrayOf(
             getCallState(),
