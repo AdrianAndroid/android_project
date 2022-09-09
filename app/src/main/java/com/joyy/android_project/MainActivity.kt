@@ -48,11 +48,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun getSubscriberId(): String {
-        return "IMSI(国际移动用户识别码):" + getTelephonyManager().subscriberId
+        return "IMSI(国际移动用户识别码):"// + getTelephonyManager().subscriberId
     }
 
     fun getSimSerialNumber(): String {
-        return "SIM卡的序列号" + getTelephonyManager().simSerialNumber
+        return "SIM卡的序列号"// + getTelephonyManager().simSerialNumber
     }
 
     fun getSimCountryIso(): String {
@@ -99,21 +99,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun getCellLocation(): String {
-        var cellLocation: CellLocation = getTelephonyManager().cellLocation
-        return ""
+        // var cellLocation: CellLocation = getTelephonyManager().cellLocation
+        return "CellLocation"
     }
 
     fun getDeviceId(): String {
-        return "deviceId:" + getTelephonyManager().deviceId
+        return "deviceId:"// + getTelephonyManager().deviceId
     }
 
 
     fun getDeviceSoftwareVersion(): String {
-        return "IMEI/SV = " + getTelephonyManager().deviceSoftwareVersion
+        return "IMEI/SV = " //+ getTelephonyManager().deviceSoftwareVersion
     }
 
     fun getLine1Number(): String {
-        return "GSM手机的 MSISDN=" + getTelephonyManager().line1Number
+        return "GSM手机的 MSISDN="// + getTelephonyManager().line1Number
     }
 
     fun getNeighboringCellInfo(): String {
