@@ -1,4 +1,4 @@
-package com.joyy.android_project
+package com.joyy.androidproject
 
 import org.junit.Test
 
