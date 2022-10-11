@@ -1,11 +1,13 @@
 package com.joyy.androidproject
 
-import android.os.Bundle
+import android.icu.text.SimpleDateFormat
+import android.os.*
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import java.util.*
 
@@ -29,11 +31,16 @@ import java.util.*
  * 定时任务
  * https://www.jianshu.com/p/67328d9d7b65
  */
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), Handler.Callback {
 
     lateinit var weatherTextView: TextView
     lateinit var btn: Button
     private val timer: Timer = Timer()
+    private val handler: Handler = Handler(Looper.myLooper()!!, this)
+
+    @RequiresApi(Build.VERSION_CODES.N)
+    private val format: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd hh:mm:ss a")
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         this.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -59,6 +66,7 @@ class MainActivity : AppCompatActivity() {
                 initButton()
             }
         }, 0, 5000)
+        handler.sendEmptyMessage(0)
     }
 
     private fun initButton() {
@@ -73,7 +81,7 @@ class MainActivity : AppCompatActivity() {
             )
             runOnUiThread {
                 weatherTextView.text = format
-                btn.text = System.currentTimeMillis().toString()
+//                btn.text = System.currentTimeMillis().toString()
             }
         }
     }
@@ -82,5 +90,17 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         timer.cancel()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.N)
+    override fun handleMessage(msg: Message): Boolean {
+        if (msg.what == 0) {
+            btn.text = format.format(Date(System.currentTimeMillis()))
+            handler.sendEmptyMessageDelayed(0, 1000)
+//            long sysTime = System.currentTimeMillis();//获取系统时间
+//            CharSequence sysTimeStr = DateFormat.format("hh:mm:ss", sysTime);//时间显示格式
+//            btn.setText(sysTimeStr); //更新时间
+        }
+        return true
     }
 }
