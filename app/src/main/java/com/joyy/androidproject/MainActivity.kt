@@ -30,6 +30,8 @@ import java.util.*
  *
  * 定时任务
  * https://www.jianshu.com/p/67328d9d7b65
+ *
+ * 知心天气
  */
 class MainActivity : AppCompatActivity(), Handler.Callback {
 
@@ -39,7 +41,7 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
     private val handler: Handler = Handler(Looper.myLooper()!!, this)
 
     @RequiresApi(Build.VERSION_CODES.N)
-    private val format: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd hh:mm:ss a")
+    private val format: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd hh:mm:ss a", Locale.ENGLISH)
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,7 +77,7 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
 //                first.now.code
             val format = String.format(
                 Locale.ENGLISH,
-                "天气:%s 温度:%sc",
+                "天气:%s 温度:%s℃",
                 first.now.text,
                 first.now.temperature
             )
