@@ -8,9 +8,15 @@ import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
 import androidx.core.app.ActivityCompat
+import androidx.fragment.app.Fragment
+import com.airbnb.lottie.LottieAnimationView
 
 class MainActivity : AppCompatActivity() {
+    lateinit var lottieAnimationView: LottieAnimationView
     override fun onCreate(savedInstanceState: Bundle?) {
         //setTheme(android.R.style.Theme_Wallpaper_NoTitleBar_Fullscreen)
         super.onCreate(savedInstanceState)
@@ -35,8 +41,24 @@ class MainActivity : AppCompatActivity() {
                     )
                     return
                 }
-                findViewById<View>(R.id.myback).background = instance.drawable;
+                //findViewById<View>(R.id.myback).background = instance.drawable;
             }
         })
+
+        load()
+    }
+
+    fun load() {
+        lottieAnimationView = LottieAnimationView(this)
+        val layoutParams = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1000)
+        val container = findViewById<FrameLayout>(R.id.container)
+        container.addView(lottieAnimationView, layoutParams)
+        lottieAnimationView.setAnimation("")
+        lottieAnimationView.loop(true)
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        lottieAnimationView.playAnimation()
     }
 }
